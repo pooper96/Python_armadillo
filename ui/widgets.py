@@ -1,5 +1,5 @@
 from kivy.uix.boxlayout import BoxLayout
-from kivy.properties import ObjectProperty, StringProperty, NumericProperty, ListProperty
+from kivy.properties import ObjectProperty, StringProperty
 from kivy.uix.button import Button
 from kivy.uix.label import Label
 
@@ -9,10 +9,13 @@ class TopBar(BoxLayout):
     coins_text = StringProperty("0")
 
     def __init__(self, services, **kwargs):
-        super().__init__(orientation="horizontal", size_hint_y=None, height=40, **kwargs)
+        super().__init__(orientation="horizontal", size_hint_y=None, height=48, spacing=6, padding=(8, 6), **kwargs)
         self.services = services
-        self.lbl = Label(text="Coins: 0", size_hint_x=0.3)
+
+        self.lbl = Label(text="Coins: 0", size_hint_x=None, width=150, halign="left", valign="middle")
+        self.lbl.bind(size=lambda *_: setattr(self.lbl, "text_size", self.lbl.size))
         self.add_widget(self.lbl)
+
         self.home_btn = Button(text="Home")
         self.hab_btn = Button(text="Habitats")
         self.breed_btn = Button(text="Breeding")

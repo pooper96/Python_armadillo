@@ -32,7 +32,6 @@ class HomeScreen(BaseScreen):
         self.root_box.add_widget(self.canvas_box)
         self.add_widget(self.root_box)
 
-        # Navigation bindings
         self.topbar.home_btn.bind(on_release=lambda *_: setattr(self.manager, "current", "home"))
         self.topbar.hab_btn.bind(on_release=lambda *_: setattr(self.manager, "current", "habitat"))
         self.topbar.breed_btn.bind(on_release=lambda *_: setattr(self.manager, "current", "breeding"))
@@ -40,34 +39,41 @@ class HomeScreen(BaseScreen):
         self.topbar.shop_btn.bind(on_release=lambda *_: setattr(self.manager, "current", "shop"))
         self.topbar.settings_btn.bind(on_release=lambda *_: setattr(self.manager, "current", "settings"))
 
+        # redraw when resized or moved
+        self.canvas_box.bind(size=lambda *_: self.refresh(), pos=lambda *_: self.refresh())
         Clock.schedule_interval(lambda dt: self._update_topbar(), 0.25)
 
     def _update_topbar(self):
         self.topbar.coins_text = str(int(self.services.sim.state["coins"]))
 
     def refresh(self):
-        self.canvas_box.canvas.clear()
-        with self.canvas_box.canvas:
-            # simple parallax-ish background layers
-            w = self.services.settings.SCREEN_W
-            h = self.services.settings.SCREEN_H - 40
-            Color(0.65, 0.85, 1.0, 1.0); Rectangle(pos=self.pos, size=(w, h))           # sky
-            Color(0.85, 0.8, 0.6, 1.0); Rectangle(pos=(0, 0), size=(w, h * 0.35))       # far sand
-            Color(0.9, 0.8, 0.55, 1.0); Rectangle(pos=(0, 0), size=(w, h * 0.25))       # near sand
+        cb = self.canvas_box
+        w, h = cb.size
+        x0, y0 = cb.pos
 
-            # draw some armadillos in a row
-            x = 40
+        cb.canvas.clear()
+        with cb.canvas:
+            # responsive background
+            sky_h = h * 0.6
+            far_h = h * 0.15
+            near_h = h * 0.15
+
+            Color(0.65, 0.85, 1.0, 1.0); Rectangle(pos=(x0, y0 + h - sky_h), size=(w, sky_h))      # sky on top
+            Color(0.85, 0.8, 0.6, 1.0);  Rectangle(pos=(x0, y0 + near_h + far_h), size=(w, far_h)) # far ground
+            Color(0.9, 0.8, 0.55, 1.0);  Rectangle(pos=(x0, y0), size=(w, near_h))                 # near ground
+
+            # armadillos along the near ground
+            x = x0 + 40
+            base_y = y0 + near_h
             for a in self.services.sim.get_armadillos()[:6]:
                 r, g, b = a.rgb
                 # shadow
-                Color(0, 0, 0, self.services.settings.SHADOW_ALPHA)
-                Ellipse(pos=(x, 70), size=(70, 20))
+                Color(0, 0, 0, self.services.settings.SHADOW_ALPHA); Ellipse(pos=(x, base_y - 12), size=(w*0.07, h*0.03))
                 # body
-                Color(r, g, b, 1.0)
-                Ellipse(pos=(x, 90), size=(70, 45))
+                Color(r, g, b, 1.0); Ellipse(pos=(x, base_y + 6), size=(w*0.07, h*0.06))
                 # head
-                Ellipse(pos=(x + 50, 110), size=(25, 20))
-                x += 110
+                Ellipse(pos=(x + w*0.045, base_y + h*0.065), size=(w*0.025, h*0.03))
+                x += max(100, w * 0.12)
 
 
 class HabitatScreen(BaseScreen):
@@ -79,7 +85,6 @@ class HabitatScreen(BaseScreen):
         self.lbl = Label(text="Habitats and residents")
         layout.add_widget(self.lbl)
         self.add_widget(layout)
-
         Clock.schedule_interval(lambda dt: self._update_topbar(), 0.25)
 
     def _update_topbar(self):
@@ -123,7 +128,6 @@ class BreedingScreen(BaseScreen):
         child = Armadillo.breed(self.services.settings, mom, dad)
         st = self.services.sim.state
         st["armadillos"].append(child.to_dict())
-        # No immediate disk write; autosave will catch it
         self.lbl.text = f"New egg! Color {child.hex_color}"
 
     def refresh(self):
@@ -187,7 +191,6 @@ class ShopScreen(BaseScreen):
             return
         target.weight = max(0.5, min(1.5, target.weight + (RNG.random() - 0.5) * 0.1))
         self.services.sim.set_armadillos(arms)
-        # No immediate disk write; autosave will catch it
         self.info.text = f"Fed {target.nickname}. New weight: {target.weight:.2f}"
 
     def refresh(self):
