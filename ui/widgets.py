@@ -3,15 +3,13 @@ from kivy.properties import ObjectProperty, StringProperty
 from kivy.uix.button import Button
 from kivy.uix.label import Label
 
-
-ACTIVE_BG = (0.22, 0.65, 0.38, 1)   # green-ish
+ACTIVE_BG = (0.22, 0.65, 0.38, 1)
 INACTIVE_BG = (0.3, 0.3, 0.3, 1)
 TEXT_COLOR = (1, 1, 1, 1)
 
 
 class NavButton(Button):
     def __init__(self, **kw):
-        # remove default image skin so background_color applies
         kw.setdefault("background_normal", "")
         kw.setdefault("background_down", "")
         kw.setdefault("color", TEXT_COLOR)
@@ -26,7 +24,8 @@ class TopBar(BoxLayout):
         super().__init__(orientation="horizontal", size_hint_y=None, height=48, spacing=6, padding=(8, 6), **kwargs)
         self.services = services
 
-        self.lbl = Label(text="Coins: 0", size_hint_x=None, width=150, halign="left", valign="middle", color=TEXT_COLOR)
+        self.lbl = Label(text="Coins: 0", size_hint_x=None, width=150,
+                         halign="left", valign="middle", color=TEXT_COLOR)
         self.lbl.bind(size=lambda *_: setattr(self.lbl, "text_size", self.lbl.size))
         self.add_widget(self.lbl)
 
@@ -45,16 +44,17 @@ class TopBar(BoxLayout):
             "shop": self.shop_btn,
             "settings": self.settings_btn,
         }
-
         for b in self._btn_map.values():
             self.add_widget(b)
 
-        self.bind(coins_text=self._on_coins_text)
+        # update coins text periodically from outside (we expose setter)
+        from kivy.clock import Clock
+        Clock.schedule_interval(lambda dt: self._tick_coins(), 0.25)
 
-    def _on_coins_text(self, *_):
-        self.lbl.text = f"Coins: {self.coins_text}"
+    def _tick_coins(self):
+        if self.services and self.services.sim:
+            self.lbl.text = f"Coins: {int(self.services.sim.state.get('coins', 0))}"
 
     def set_active(self, screen_name: str):
-        """Visually highlight the active screen's button."""
         for name, btn in self._btn_map.items():
             btn.background_color = ACTIVE_BG if name == screen_name else INACTIVE_BG
