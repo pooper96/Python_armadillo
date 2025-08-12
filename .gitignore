@@ -1,0 +1,37 @@
+# --- Python ---
+__pycache__/
+*.py[cod]
+*.pyo
+*.log
+
+# Virtual envs
+.venv/
+venv/
+env/
+
+# IDE
+.idea/
+
+# Kivy / Build artifacts
+.kivy/
+*.kv~        # temp edits
+build/
+dist/
+bin/
+*.apk
+*.aab
+
+# Buildozer / Briefcase
+.buildozer/
+.keystore
+.briefcase/
+*.spec
+
+# Caches
+*.egg-info/
+.eggs/
+.cache/
+.mypy_cache/
+.pytest_cache/
+coverage.xml
+htmlcov/
