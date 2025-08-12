@@ -62,7 +62,6 @@ class SimService:
 
     def process_incubator(self):
         remaining = []
-        hatched = False
         for entry in self.state.get("incubator", []):
             entry["ticks_left"] -= 1
             if entry["ticks_left"] <= 0:
@@ -70,11 +69,15 @@ class SimService:
                 child.stage = "juvenile"
                 child.age_ticks = 0
                 self.state["armadillos"].append(child.to_dict())
-                hatched = True
             else:
                 remaining.append(entry)
         self.state["incubator"] = remaining
-        return hatched
+
+    def speed_up_incubator(self, idx: int, ticks: int):
+        """Reduce remaining incubation by 'ticks' for entry index if exists."""
+        inc = self.state.get("incubator", [])
+        if 0 <= idx < len(inc):
+            inc[idx]["ticks_left"] = max(0, inc[idx]["ticks_left"] - ticks)
 
     # -------- main tick --------
     def tick(self, dt):

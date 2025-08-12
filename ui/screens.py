@@ -3,6 +3,7 @@ from kivy.uix.screenmanager import Screen
 from kivy.uix.boxlayout import BoxLayout
 from kivy.uix.label import Label
 from kivy.uix.button import Button
+from kivy.uix.progressbar import ProgressBar
 from kivy.graphics import Color, Rectangle, Line
 from kivy.clock import Clock
 
@@ -20,7 +21,7 @@ class BaseScreen(Screen):
 # ---------------- Farm ----------------
 
 class HomeScreen(BaseScreen):
-    """Farm view: pixel sprites, selection outline, quick actions."""
+    """Farm view: pixel sprites, selection outline, quick actions, drag-to-habitat."""
     def __init__(self, services, **kwargs):
         super().__init__(services, **kwargs)
         self.root_box = BoxLayout(orientation="vertical")
@@ -28,7 +29,7 @@ class HomeScreen(BaseScreen):
         self.root_box.add_widget(self.canvas_box)
 
         self.action_bar = BoxLayout(orientation="horizontal", size_hint_y=None, height=56, padding=8, spacing=8)
-        self.info_lbl = Label(text="Tap an armadillo to select.", halign="left", valign="middle")
+        self.info_lbl = Label(text="Tap to select. Long-press to drag into a habitat slot.", halign="left", valign="middle")
         self.info_lbl.bind(size=lambda *_: setattr(self.info_lbl, "text_size", self.info_lbl.size))
         self.feed_btn = Button(text="Feed (+Hunger)")
         self.pet_btn = Button(text="Pet (+Happiness)")
@@ -42,17 +43,37 @@ class HomeScreen(BaseScreen):
         self.pet_btn.bind(on_release=lambda *_: self._pet_selected())
 
         self.canvas_box.bind(size=lambda *_: self.refresh(), pos=lambda *_: self.refresh())
-        self._sprites = {}
+        self._sprites = {}          # arm_id -> dict(frames, x, vx, frame, rect)
+        self._hab_zones = []        # list of dict(id, rect, label_rect)
+        self._long_press_ev = None  # ClockEvent or None
+
         Clock.schedule_interval(self._animate, 1 / 60.0)
 
     # selection uses shared ui_state
     def _selected_id(self):
         return self.services.ui.selected_armadillo_id
 
+    # ---------- input / drag ----------
+    def _schedule_longpress(self, touch, arm_id):
+        def start_drag(_dt):
+            ui = self.services.ui
+            if ui._drag_touch_uid is not None:
+                return
+            ui.dragging_id = arm_id
+            ui._drag_touch_uid = touch.uid
+            ui._drag_started = True
+            ui.drag_pos = touch.pos
+            # also mark as selected
+            ui.selected_armadillo_id = arm_id
+            self._update_action_bar()
+        self._long_press_ev = Clock.schedule_once(start_drag, 0.25)
+
     def on_touch_down(self, touch):
         if not self.collide_point(*touch.pos):
             return super().on_touch_down(touch)
-        for a in self.services.sim.get_armadillos()[:12]:
+
+        # check armadillo hit
+        for a in self.services.sim.get_armadillos()[:16]:
             s = self._sprites.get(a.id)
             if not s:
                 continue
@@ -60,11 +81,44 @@ class HomeScreen(BaseScreen):
             if x <= touch.x <= x + w and y <= touch.y <= y + h:
                 self.services.ui.selected_armadillo_id = a.id
                 self._update_action_bar()
+                self._schedule_longpress(touch, a.id)
                 return True
+
+        # tap empty ground
         self.services.ui.selected_armadillo_id = None
         self._update_action_bar()
         return True
 
+    def on_touch_move(self, touch):
+        ui = self.services.ui
+        if ui._drag_touch_uid == touch.uid and ui._drag_started:
+            ui.drag_pos = touch.pos
+            return True
+        return super().on_touch_move(touch)
+
+    def on_touch_up(self, touch):
+        if self._long_press_ev:
+            self._long_press_ev.cancel()
+            self._long_press_ev = None
+
+        ui = self.services.ui
+        if ui._drag_touch_uid == touch.uid and ui._drag_started:
+            # drop into habitat zone if any
+            dropped = False
+            for z in self._hab_zones:
+                zx, zy, zw, zh = z["rect"]
+                if zx <= touch.x <= zx + zw and zy <= touch.y <= zy + zh:
+                    self._try_move_to_habitat(ui.dragging_id, z["id"])
+                    dropped = True
+                    break
+            # reset drag state
+            ui._drag_touch_uid = None
+            ui._drag_started = False
+            ui.dragging_id = None
+            return True if dropped else True
+        return super().on_touch_up(touch)
+
+    # ---------- quick actions ----------
     def _feed_selected(self):
         sid = self._selected_id()
         if not sid: return
@@ -92,24 +146,32 @@ class HomeScreen(BaseScreen):
         self.services.sim.set_armadillos(arms)
         self._update_action_bar()
 
-    def _update_action_bar(self):
-        sid = self._selected_id()
-        if not sid:
-            self.info_lbl.text = "Tap an armadillo to select."
-            self.feed_btn.disabled = True
-            self.pet_btn.disabled = True
+    def _try_move_to_habitat(self, arm_id: str | None, hab_id: str):
+        if not arm_id:
+            self.info_lbl.text = "No armadillo selected."
             return
-        a = next((x for x in self.services.sim.get_armadillos() if x.id == sid), None)
+        arms = self.services.sim.get_armadillos()
+        a = next((x for x in arms if x.id == arm_id), None)
         if not a:
-            self.info_lbl.text = "Tap an armadillo to select."
-            self.feed_btn.disabled = True
-            self.pet_btn.disabled = True
+            self.info_lbl.text = "Not found."
             return
-        self.feed_btn.disabled = False
-        self.pet_btn.disabled = False
-        self.info_lbl.text = f"{a.nickname} | Hunger {int(a.hunger)}  | Happiness {int(a.happiness)}"
+        habs = self.services.sim.get_habitats()
+        h = next((hh for hh in habs if hh.id == hab_id), None)
+        if not h:
+            self.info_lbl.text = "Habitat missing."
+            return
+        occupants = [x for x in arms if x.habitat_id == h.id]
+        if len(occupants) >= h.capacity:
+            self.info_lbl.text = f"{h.name} is full."
+            return
+        a.habitat_id = h.id
+        for i, old in enumerate(arms):
+            if old.id == a.id: arms[i] = a
+        self.services.sim.set_armadillos(arms)
+        self.info_lbl.text = f"Moved {a.nickname} → {h.name}"
+        self.refresh()
 
-    # animation
+    # ---------- animation ----------
     def _ensure_sprites(self):
         cb = self.canvas_box
         w, h = cb.size
@@ -134,7 +196,7 @@ class HomeScreen(BaseScreen):
         right = cb.x + w - self.services.settings.ARM_MARGIN_X
 
         sset = self.services.settings
-        for a in self.services.sim.get_armadillos()[:12]:
+        for a in self.services.sim.get_armadillos()[:16]:
             s = self._sprites[a.id]
             # hunger affects base speed strongly; happiness adds bonus
             hunger_mult = sset.SPEED_HUNGER_MIN + (1 - sset.SPEED_HUNGER_MIN) * (a.hunger / sset.HUNGER_MAX)
@@ -159,6 +221,24 @@ class HomeScreen(BaseScreen):
         self._update_action_bar()
         self._draw()
 
+    # ---------- drawing ----------
+    def _compute_hab_zones(self, x0, y0, w, h, near_h):
+        """Lay out simple drop slots just above the fence."""
+        habs = self.services.sim.get_habitats()
+        slots = max(1, len(habs))
+        if slots == 0:
+            self._hab_zones = []
+            return
+        pad = 12
+        zone_w = (w - pad * (slots + 1)) / slots
+        zone_h = max(36.0, h * 0.08)
+        y = y0 + near_h + 8
+        zones = []
+        for i, hab in enumerate(habs):
+            zx = x0 + pad + i * (zone_w + pad)
+            zones.append({"id": hab.id, "name": hab.name, "rect": (zx, y, zone_w, zone_h)})
+        self._hab_zones = zones
+
     def _draw(self):
         cb = self.canvas_box
         w, h = cb.size
@@ -170,8 +250,12 @@ class HomeScreen(BaseScreen):
         mid_h = h * 0.19
         near_h = h * 0.16
 
+        # compute drop zones
+        self._compute_hab_zones(x0, y0, w, h, near_h)
+
         cb.canvas.clear()
         with cb.canvas:
+            # sky & dunes
             Color(0.60, 0.84, 1.0, 1.0); Rectangle(pos=(x0, y0 + h - sky_h), size=(w, sky_h))
             Color(0.55, 0.80, 0.98, 1.0); Rectangle(pos=(x0, y0 + h - sky_h * 0.55), size=(w, sky_h * 0.2))
             Color(0.53, 0.78, 0.96, 1.0); Rectangle(pos=(x0, y0 + h - sky_h * 0.80), size=(w, sky_h * 0.15))
@@ -179,22 +263,36 @@ class HomeScreen(BaseScreen):
             Color(0.92, 0.84, 0.60, 1.0); Rectangle(pos=(x0, y0), size=(w, near_h))
             Color(0.35, 0.28, 0.18, 1.0); Line(points=[x0, y0 + near_h + 6, x0 + w, y0 + near_h + 6], width=1.3)
 
+            # habitat drop zones
+            for z in self._hab_zones:
+                zx, zy, zw, zh = z["rect"]
+                Color(0.18, 0.18, 0.18, 0.25); Rectangle(pos=(zx, zy), size=(zw, zh))
+                Color(0.18, 0.18, 0.18, 1.0); Line(rectangle=(zx, zy, zw, zh), width=1.0)
+
             # sprites
             sset = self.services.settings
             scale = max(sset.PIXEL_SCALE_MIN, min(sset.PIXEL_SCALE_MAX, w / 160.0))
             spw, sph = 24 * scale, 16 * scale
             ground_y = y0 + near_h - 2
 
-            for a in self.services.sim.get_armadillos()[:12]:
+            for a in self.services.sim.get_armadillos()[:16]:
                 s = self._sprites[a.id]
                 tex = s["frames"][s["frame"]]
                 width = spw if s["vx"] >= 0 else -spw
                 px = s["x"] - (spw / 2 if s["vx"] >= 0 else -spw / 2)
                 Rectangle(texture=tex, pos=(px, ground_y), size=(width, sph))
                 s["rect"] = (px if width >= 0 else px + width, ground_y, abs(width), sph)
+
                 if self.services.ui.selected_armadillo_id == a.id:
                     Color(0.22, 0.65, 0.38, 1.0)
                     Line(rectangle=(s["rect"][0]-2, s["rect"][1]-2, s["rect"][2]+4, s["rect"][3]+4), width=1.2)
+
+            # drag ghost
+            ui = self.services.ui
+            if ui._drag_started and ui.dragging_id:
+                Color(0.22, 0.65, 0.38, 0.5)
+                cx, cy = ui.drag_pos
+                Rectangle(pos=(cx - spw/2, ground_y + sph*0.2), size=(spw, sph))
 
 
 # ---------------- Habitats ----------------
@@ -207,14 +305,11 @@ class HabitatScreen(BaseScreen):
         self.box.add_widget(self.info)
         self.controls = BoxLayout(size_hint_y=None, height=56, spacing=8)
         self.add_btn = Button(text="Add Habitat (-100)")
-        self.move_btn = Button(text="Move Selected Here")
         self.controls.add_widget(self.add_btn)
-        self.controls.add_widget(self.move_btn)
         self.box.add_widget(self.controls)
         self.add_widget(self.box)
 
         self.add_btn.bind(on_release=lambda *_: self._add_habitat())
-        self.move_btn.bind(on_release=lambda *_: self._move_selected())
 
     def on_pre_enter(self, *args): self.refresh()
 
@@ -236,32 +331,6 @@ class HabitatScreen(BaseScreen):
         self.services.sim.set_habitats(habs)
         self.refresh()
 
-    def _move_selected(self):
-        sid = self.services.ui.selected_armadillo_id
-        if not sid:
-            self.info.text = "Select an armadillo on Home first."
-            return
-        habs = self.services.sim.get_habitats()
-        if not habs:
-            self.info.text = "No habitats yet."
-            return
-        target = habs[0]  # demo: use the first habitat
-        arms = self.services.sim.get_armadillos()
-        a = next((x for x in arms if x.id == sid), None)
-        if not a:
-            self.info.text = "Selected armadillo not found."
-            return
-        # capacity check
-        occupants = [x for x in arms if x.habitat_id == target.id]
-        if len(occupants) >= target.capacity:
-            self.info.text = "Habitat is full."
-            return
-        a.habitat_id = target.id
-        for i, old in enumerate(arms):
-            if old.id == a.id: arms[i] = a
-        self.services.sim.set_armadillos(arms)
-        self.refresh()
-
 
 # ---------------- Breeding ----------------
 
@@ -273,12 +342,15 @@ class BreedingScreen(BaseScreen):
         self.box.add_widget(self.lbl)
         self.btn = Button(text="Breed first M+F adults (start incubation)")
         self.box.add_widget(self.btn)
-        self.inc_lbl = Label(text="Incubator: empty", size_hint_y=None, height=40)
-        self.box.add_widget(self.inc_lbl)
+
+        # incubator list UI
+        self.inc_list = BoxLayout(orientation="vertical", spacing=6)
+        self.box.add_widget(self.inc_list)
+
         self.add_widget(self.box)
         self.btn.bind(on_release=lambda *_: self._breed())
 
-        Clock.schedule_interval(lambda dt: self._update_incubator(), 0.25)
+        Clock.schedule_interval(lambda dt: self._refresh_incubator_ui(), 0.25)
 
     def on_pre_enter(self, *args): self.refresh()
 
@@ -286,15 +358,7 @@ class BreedingScreen(BaseScreen):
         arms = self.services.sim.get_armadillos()
         adults = [a for a in arms if a.stage == "adult"]
         self.lbl.text = f"Adults ready: {len(adults)}"
-        self._update_incubator()
-
-    def _update_incubator(self):
-        inc = self.services.sim.state.get("incubator", [])
-        if not inc:
-            self.inc_lbl.text = "Incubator: empty"
-        else:
-            first = inc[0]
-            self.inc_lbl.text = f"Incubator: {len(inc)} egg(s). First hatches in {int(first['ticks_left']/self.services.settings.TICKS_PER_SEC)}s"
+        self._refresh_incubator_ui()
 
     def _breed(self):
         arms = [a for a in self.services.sim.get_armadillos() if a.stage == "adult"]
@@ -306,7 +370,35 @@ class BreedingScreen(BaseScreen):
         egg = Armadillo.breed(self.services.settings, mom, dad)
         self.services.sim.start_incubation(egg)
         self.lbl.text = f"Egg in incubator! Color {egg.hex_color}"
-        self._update_incubator()
+        self._refresh_incubator_ui()
+
+    def _refresh_incubator_ui(self):
+        self.inc_list.clear_widgets()
+        inc = self.services.sim.state.get("incubator", [])
+        if not inc:
+            self.inc_list.add_widget(Label(text="Incubator: empty"))
+            return
+        tps = self.services.settings.TICKS_PER_SEC
+        for idx, entry in enumerate(inc):
+            row = BoxLayout(orientation="horizontal", spacing=8, size_hint_y=None, height=36)
+            ticks = entry["ticks_left"]
+            seconds = max(0, int(ticks / tps))
+            pb = ProgressBar(max=self.services.settings.EGG_TICKS, value=self.services.settings.EGG_TICKS - ticks)
+            row.add_widget(Label(text=f"Egg #{idx+1}"))
+            row.add_widget(pb)
+            row.add_widget(Label(text=f"{seconds}s"))
+            btn = Button(text="Speed +5s (-2)")
+            def make_cb(i):
+                return lambda *_: self._speed_up(i)
+            btn.bind(on_release=make_cb(idx))
+            row.add_widget(btn)
+            self.inc_list.add_widget(row)
+
+    def _speed_up(self, idx: int):
+        if not self.services.econ.spend(2):
+            return
+        self.services.sim.speed_up_incubator(idx, self.services.settings.TICKS_PER_SEC * 5)
+        self._refresh_incubator_ui()
 
 
 # ---------------- Dex & Shop ----------------
@@ -325,7 +417,6 @@ class DexScreen(BaseScreen):
         arms = self.services.sim.get_armadillos()
         lines = []
         for a in arms[:20]:
-            r, g, b = a.rgb
             lines.append(f"{a.nickname} {a.stage} {a.sex} {a.hex_color} (H{int(a.hunger)}/Happy{int(a.happiness)})")
         self.lbl.text = "\n".join(lines) if lines else "No armadillos yet."
 
@@ -334,7 +425,7 @@ class ShopScreen(BaseScreen):
     def __init__(self, services, **kwargs):
         super().__init__(services, **kwargs)
         self.box = BoxLayout(orientation="vertical", spacing=12, padding=12)
-        self.info = Label(text="Shop: Feed (2 coins). +40 hunger to the selected armadillo.")
+        self.info = Label(text="Shop: basic items coming soon.\nTip: long-press on Farm to drag into a habitat slot.")
         self.box.add_widget(self.info)
         self.add_widget(self.box)
 
