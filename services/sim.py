@@ -55,6 +55,7 @@ class SimService:
 
     # -------- incubator --------
     def start_incubation(self, egg: Armadillo):
+        self.state.setdefault("incubator", [])
         self.state["incubator"].append({
             "child": egg.to_dict(),
             "ticks_left": self.settings.EGG_TICKS
@@ -74,8 +75,7 @@ class SimService:
         self.state["incubator"] = remaining
 
     def speed_up_incubator(self, idx: int, ticks: int):
-        """Reduce remaining incubation by 'ticks' for entry index if exists."""
-        inc = self.state.get("incubator", [])
+        inc = self.state.setdefault("incubator", [])
         if 0 <= idx < len(inc):
             inc[idx]["ticks_left"] = max(0, inc[idx]["ticks_left"] - ticks)
 

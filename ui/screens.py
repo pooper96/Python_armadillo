@@ -42,16 +42,41 @@ class HomeScreen(BaseScreen):
         self.feed_btn.bind(on_release=lambda *_: self._feed_selected())
         self.pet_btn.bind(on_release=lambda *_: self._pet_selected())
 
-        self.canvas_box.bind(size=lambda *_: self.refresh(), pos=lambda *_: self.refresh())
+        # draw/resize
+        self.canvas_box.bind(size=self._on_canvas_change, pos=self._on_canvas_change)
+
+        # runtime state
         self._sprites = {}          # arm_id -> dict(frames, x, vx, frame, rect)
-        self._hab_zones = []        # list of dict(id, rect, label_rect)
+        self._hab_zones = []        # list of dict(id, rect)
         self._long_press_ev = None  # ClockEvent or None
 
         Clock.schedule_interval(self._animate, 1 / 60.0)
 
-    # selection uses shared ui_state
+    # ---- helpers ----
+    def _on_canvas_change(self, *_):
+        # avoid calling refresh before we are fully constructed
+        if hasattr(self, "_sprites"):
+            self.refresh()
+
     def _selected_id(self):
         return self.services.ui.selected_armadillo_id
+
+    def _update_action_bar(self):
+        sid = self._selected_id()
+        if not sid:
+            self.info_lbl.text = "Tap to select. Long-press to drag into a habitat slot."
+            self.feed_btn.disabled = True
+            self.pet_btn.disabled = True
+            return
+        a = next((x for x in self.services.sim.get_armadillos() if x.id == sid), None)
+        if not a:
+            self.info_lbl.text = "Tap to select. Long-press to drag into a habitat slot."
+            self.feed_btn.disabled = True
+            self.pet_btn.disabled = True
+            return
+        self.feed_btn.disabled = False
+        self.pet_btn.disabled = False
+        self.info_lbl.text = f"{a.nickname} | Hunger {int(a.hunger)}  | Happiness {int(a.happiness)}"
 
     # ---------- input / drag ----------
     def _schedule_longpress(self, touch, arm_id):
@@ -104,18 +129,16 @@ class HomeScreen(BaseScreen):
         ui = self.services.ui
         if ui._drag_touch_uid == touch.uid and ui._drag_started:
             # drop into habitat zone if any
-            dropped = False
             for z in self._hab_zones:
                 zx, zy, zw, zh = z["rect"]
                 if zx <= touch.x <= zx + zw and zy <= touch.y <= zy + zh:
                     self._try_move_to_habitat(ui.dragging_id, z["id"])
-                    dropped = True
                     break
             # reset drag state
             ui._drag_touch_uid = None
             ui._drag_started = False
             ui.dragging_id = None
-            return True if dropped else True
+            return True
         return super().on_touch_up(touch)
 
     # ---------- quick actions ----------
