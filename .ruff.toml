@@ -1,0 +1,7 @@
+target-version = "py311"
+line-length = 100
+extend-select = ["E", "F", "I", "UP", "W"]
+ignore = ["E501"]  # long KV strings, etc.
+
+[format]
+quote-style = "double"

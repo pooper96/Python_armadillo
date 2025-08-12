@@ -1,40 +1,26 @@
-# --- Python ---p
+# Python
 __pycache__/
-*.py[cod]
+*.pyc
 *.pyo
-*.log
-
-# Virtual envs
 .venv/
-venv/
-env/
 
-# IDE
-.idea/
-
-# Kivy / Build artifacts
-.kivy/
-*.kv~        # temp edits
-build/
-dist/
+# Buildozer / Android
+.buildozer/
 bin/
 *.apk
-*.aab
 
-# Buildozer / Briefcase
-.buildozer/
-.keystore
-.briefcase/
-*.spec
+# Kivy logs / runtime
+.kivy/
+*.log
 
-# Caches
-*.egg-info/
-.eggs/
-.cache/
-.mypy_cache/
+# IDE
+.vscode/
+.idea/
+
+# Tests / tooling
 .pytest_cache/
-coverage.xml
-htmlcov/
+.coverage
 
-# Saves
-armadillo_farmer_save.json
+# OS
+.DS_Store
+Thumbs.db

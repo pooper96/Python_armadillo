@@ -1,8 +1,9 @@
 # main.py
 # App bootstrap, GameState model, autosave, ScreenManager, safe areas.
-import json, os, random, time
+import json, os, time
 from dataclasses import dataclass, asdict
 from typing import List, Dict
+from pathlib import Path
 
 from kivy.app import App
 from kivy.clock import Clock
@@ -11,21 +12,29 @@ from kivy.lang import Builder
 from kivy.properties import (NumericProperty, ListProperty, BooleanProperty, StringProperty)
 from kivy.uix.boxlayout import BoxLayout
 from kivy.uix.screenmanager import ScreenManager, NoTransition
+from kivy.factory import Factory
+from kivy.logger import Logger
+
+# Import UI modules so Kivy knows the classes before KV is parsed
+from ui import widgets as _widgets  # registers TopBar, BottomNav, NavButton, etc.
+from ui import drag as _drag        # registers DragManager / DropZoneMixin
+from ui.screens import home, habitats, breeding, dex, shop  # registers all Screen classes
 
 from ui.constants import BG, SAFE_TOP, SAFE_BOT, tr
 from ui.drag import DragManager
 from ui.widgets import TopBar, BottomNav, ToastManager, log_event
+from core.save_io import load_state, save_state_atomic
+
+# Absolute KV path so PyCharm CWD won’t break loading
+BASE_DIR = Path(__file__).resolve().parent
+KV_PATH = BASE_DIR / "ui" / "layout.kv"
 
 # -------- Minimal GameState --------
 class GameState(BoxLayout):
-    # Using Properties so kv can bind
     coins = NumericProperty(100)
-    # Armadillos: list of dicts {id, name, hunger(0..1), happiness(0..1), pen}
-    armadillos = ListProperty([])
-    # Pens/Habitats: list of dicts {name, cap, yield, biome}
-    pens = ListProperty([])
-    # Breeding/incubator queue: list of dicts {egg_id, remain}
-    incubator = ListProperty([])
+    armadillos = ListProperty([])  # list of dicts {id, name, hunger, happiness, pen}
+    pens = ListProperty([])        # list of dicts {name, cap, yield, biome}
+    incubator = ListProperty([])   # list of dicts {egg_id, remain}
     inc_slots = NumericProperty(1)
     version = StringProperty("1")
 
@@ -133,11 +142,9 @@ class GameState(BoxLayout):
             if q["remain"] > 0:
                 q["remain"] = max(0.0, q["remain"] - seconds)
                 changed = True
-        # hatch any done
         done = [q for q in self.incubator if q["remain"] <= 0]
         if done:
             for _ in done:
-                # create a baby
                 new_id = f"A{len(self.armadillos)+1}"
                 self.armadillos.append({"id": new_id, "name": "Baby", "hunger": .6, "happiness": .6, "pen": 0})
                 self.add_coins(5)
@@ -155,34 +162,18 @@ class Root(BoxLayout):
         super().__init__(**kw)
         self.orientation = "vertical"
         # Safe area padding (top/bottom)
-        self.padding = (0, SAFE_BOT, 0, SAFE_TOP)
+        self.padding = (0, 16, 0, 24)  # constants applied via kv theme too
         # top bar
         self.topbar = TopBar(title="Armadillo", on_settings=self.open_settings)
         self.add_widget(self.topbar)
         # screens
         self.sm = ScreenManager(transition=NoTransition())
-        # Import screen classes so kv can use them
-        from ui.screens.home import HomeScreen  # noqa
-        from ui.screens.habitats import HabitatsScreen  # noqa
-        from ui.screens.breeding import BreedingScreen  # noqa
-        from ui.screens.dex import DexScreen  # noqa
-        from ui.screens.shop import ShopScreen  # noqa
-
-        # Load kv layout
-        from kivy.factory import Factory
-
-        Builder.load_file("ui/layout.kv")
-
-        # Try template first, fall back to Factory instantiation
-        def add(name):
-            try:
-                self.sm.add_widget(Builder.template(name))
-            except Exception:
-                self.sm.add_widget(getattr(Factory, name)())
-
+        # Instantiate screens declared in KV by class name via Factory
         for name in ["HomeScreen", "HabitatsScreen", "BreedingScreen", "DexScreen", "ShopScreen"]:
-            add(name)
-
+            try:
+                self.sm.add_widget(getattr(Factory, name)())
+            except Exception as e:
+                Logger.exception("Failed to create screen %s: %s", name, e)
         self.add_widget(self.sm)
         # bottom nav
         self.nav = BottomNav(on_tab=self.switch_to)
@@ -195,8 +186,18 @@ class Root(BoxLayout):
         self.sm.current = tab
 
     def open_settings(self):
-        self.sm.current = "shop"  # lightweight: settings icon could route to settings screen if present
-        App.get_running_app().open_settings_screen()
+        # hook to open settings if you add a settings screen
+        self.sm.current = "shop"  # simple route for now
+
+# --- Simple global crash toast ---
+import sys
+def _excepthook(exc_type, exc, tb):
+    Logger.exception("Unhandled exception", exc_info=(exc_type, exc, tb))
+    try:
+        ToastManager.show("Error occurred. Check logs.")
+    except Exception:
+        pass
+sys.excepthook = _excepthook
 
 # -------- App --------
 class ArmadilloApp(App):
@@ -214,40 +215,35 @@ class ArmadilloApp(App):
     def build(self):
         self.title = "Armadillo"
         Window.clearcolor = BG
+        # Load save first
         self._load_if_exists()
+        # Load KV AFTER classes imported/registered
+        Builder.load_file(str(KV_PATH))
         root = Root()
         self.root = root
         ToastManager.ensure_overlay()
         return root
 
-    # -------- Navigation helpers --------
-    def open_settings_screen(self):
-        # If you add a dedicated settings screen, switch here.
-        pass
-
     # -------- Autosave --------
-    @property
-    def save_path(self):
-        return os.path.join(self.user_data_dir, "save.json")
-
     def autosave_later(self, delay=0.2):
         if self._save_ev:
             self._save_ev.cancel()
         self._save_ev = Clock.schedule_once(lambda dt: self._save_now(), delay)
 
     def _save_now(self):
-        os.makedirs(self.user_data_dir, exist_ok=True)
-        with open(self.save_path, "w", encoding="utf-8") as f:
-            json.dump(self.state.to_dict(), f, ensure_ascii=False)
-        log_event("autosave")
+        try:
+            save_state_atomic(self.state.to_dict())
+            log_event("autosave")
+        except Exception as e:
+            Logger.exception("Save failed: %s", e)
 
     def _load_if_exists(self):
         try:
-            with open(self.save_path, "r", encoding="utf-8") as f:
-                data = json.load(f)
-            self.state.from_dict(data)
-        except Exception:
-            pass
+            data = load_state()
+            if data:
+                self.state.from_dict(data)
+        except Exception as e:
+            Logger.exception("Load failed: %s", e)
 
     # Android lifecycle
     def on_pause(self):
@@ -255,7 +251,6 @@ class ArmadilloApp(App):
         return True
 
     def on_resume(self):
-        # no-op; state already in memory
         pass
 
 if __name__ == "__main__":

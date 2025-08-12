@@ -143,8 +143,6 @@
         orientation: "vertical"
         padding: dp(12), 0
         spacing: dp(8)
-
-        # Horizontal habitat strip (Python will populate)
         ScrollView:
             do_scroll_x: True
             do_scroll_y: False
@@ -159,8 +157,6 @@
                 width: self.minimum_width
                 spacing: dp(8)
                 padding: dp(2), dp(2)
-
-        # Selected info bar + HUD actions
         BoxLayout:
             size_hint_y: None
             height: dp(96)
@@ -173,7 +169,6 @@
                     pos: self.pos
                     size: self.size
                     radius: [dp(14),]*4
-
             BoxLayout:
                 orientation: "vertical"
                 ALabel:
@@ -185,7 +180,6 @@
                 SmoothProgress:
                     height: dp(8)
                     value: 0.7
-
             BoxLayout:
                 size_hint_x: None
                 width: dp(200)
@@ -210,12 +204,10 @@
             pos: self.pos
             size: self.size
             radius: [dp(14),]*4
-
     ALabel:
         text: root.name
         base_size: sp(14)
         bold: True
-
     GridLayout:
         id: grid
         cols: 4
@@ -223,7 +215,6 @@
         spacing: dp(4)
         size_hint_y: None
         height: dp(100)
-
     Button:
         size_hint_y: None
         height: dp(32)
@@ -275,7 +266,6 @@
         orientation: "vertical"
         padding: dp(12), dp(12)
         spacing: dp(8)
-
         BoxLayout:
             spacing: dp(8)
             ParentSlot:
@@ -291,17 +281,14 @@
             Button:
                 text: "Start"
                 on_release: root.start()
-
         ALabel:
             text: "Incubator Queue"
             base_size: sp(14)
-
         GridLayout:
             cols: 1
             size_hint_y: None
             height: self.minimum_height
             spacing: dp(6)
-
             RecycleView:
                 viewclass: 'Card'
                 size_hint_y: None
@@ -336,7 +323,6 @@
         orientation: "vertical"
         padding: dp(12), dp(12)
         spacing: dp(8)
-
         BoxLayout:
             size_hint_y: None
             height: dp(40)
@@ -352,7 +338,6 @@
                 state: "down" if root.tab=="upgrades" else "normal"
                 on_state:
                     root.tab = "upgrades" if self.state=="down" else root.tab
-
         BoxLayout:
             RecycleView:
                 id: rv
@@ -364,7 +349,6 @@
                     size_hint_y: None
                     height: self.minimum_height
                     spacing: dp(8)
-
         BoxLayout:
             size_hint_y: None
             height: dp(48)
