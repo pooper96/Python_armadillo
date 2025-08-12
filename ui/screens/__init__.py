@@ -1,4 +1,3 @@
-# marks 'ui.screens' as a package and re-exports screens
 from .home import HomeScreen
 from .habitats import HabitatsScreen
 from .breeding import BreedingScreen
