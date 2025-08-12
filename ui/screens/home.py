@@ -1,10 +1,10 @@
-# ui/screens/home.py
 from kivy.uix.screenmanager import Screen
 from kivy.properties import ListProperty, NumericProperty, StringProperty, BooleanProperty
 from kivy.uix.boxlayout import BoxLayout
 from kivy.uix.widget import Widget
 from kivy.clock import Clock
 from kivy.app import App
+from kivy.metrics import dp
 
 from ..drag import DropZoneMixin
 from ..widgets import ToastManager, Haptics, log_event
@@ -46,11 +46,15 @@ class PenWidget(DropZoneMixin, BoxLayout):
         # add up to 8 tokens
         for a_id in ids_in_pen[:8]:
             grid.add_widget(
-                ArmadilloWidget(armadillo_id=a_id, size_hint=(None, None))
+                ArmadilloWidget(
+                    armadillo_id=a_id,
+                    size_hint=(None, None),
+                    size=(dp(48), dp(48)),
+                )
             )
         # pad remaining cells
         for _ in range(max(0, 8 - len(ids_in_pen))):
-            grid.add_widget(Widget(size_hint=(None, None)))
+            grid.add_widget(Widget(size_hint=(None, None), size=(dp(48), dp(48))))
 
     def accepts(self, payload: dict) -> bool:
         if not super().accepts(payload):
@@ -64,7 +68,9 @@ class PenWidget(DropZoneMixin, BoxLayout):
             ToastManager.show(tr("Moved!"))
             app.autosave_later()
             log_event("armadillo_moved", pen=self.pen_index)
-            self.populate_grid()  # refresh this pen
+            # Refresh all pens so both source and destination update
+            home = app.root.sm.get_screen("home")
+            home.refresh_all_pens()
 
 
 class HomeScreen(Screen):
@@ -94,6 +100,15 @@ class HomeScreen(Screen):
         strip.clear_widgets()
         for i, p in enumerate(app.state.pens):
             strip.add_widget(PenWidget(pen_index=i, name=p.get("name", f"Pen {i+1}")))
+
+    def refresh_all_pens(self):
+        """Re-populate every pen's grid (used after moves)."""
+        strip = self.ids.get("pens_strip")
+        if not strip:
+            return
+        for child in strip.children:
+            if isinstance(child, PenWidget):
+                child.populate_grid()
 
     def select(self, armadillo_id: str):
         self.selected_id = armadillo_id
