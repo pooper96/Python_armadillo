@@ -2,7 +2,7 @@ from kivy.uix.screenmanager import Screen
 from kivy.uix.boxlayout import BoxLayout
 from kivy.uix.label import Label
 from kivy.uix.button import Button
-from kivy.graphics import Color, Rectangle, Ellipse
+from kivy.graphics import Color, Rectangle, Ellipse, Line
 from kivy.clock import Clock
 
 from ui.widgets import TopBar
@@ -16,6 +16,7 @@ class BaseScreen(Screen):
         self.services = services
 
     def on_pre_enter(self, *args):
+        # child screens override and call topbar.set_active(...)
         self.refresh()
 
     def refresh(self):
@@ -23,6 +24,7 @@ class BaseScreen(Screen):
 
 
 class HomeScreen(BaseScreen):
+    """Farm view: responsive background + idle armadillos that waddle and bob."""
     def __init__(self, services, **kwargs):
         super().__init__(services, **kwargs)
         self.root_box = BoxLayout(orientation="vertical")
@@ -32,6 +34,7 @@ class HomeScreen(BaseScreen):
         self.root_box.add_widget(self.canvas_box)
         self.add_widget(self.root_box)
 
+        # Navigation bindings
         self.topbar.home_btn.bind(on_release=lambda *_: setattr(self.manager, "current", "home"))
         self.topbar.hab_btn.bind(on_release=lambda *_: setattr(self.manager, "current", "habitat"))
         self.topbar.breed_btn.bind(on_release=lambda *_: setattr(self.manager, "current", "breeding"))
@@ -43,37 +46,109 @@ class HomeScreen(BaseScreen):
         self.canvas_box.bind(size=lambda *_: self.refresh(), pos=lambda *_: self.refresh())
         Clock.schedule_interval(lambda dt: self._update_topbar(), 0.25)
 
+        # simple runtime animation state (not saved)
+        self._sprites = {}  # id -> {"x","y","vx","phase"}
+        Clock.schedule_interval(self._animate, 1 / 60.0)
+
+    def on_pre_enter(self, *args):
+        super().on_pre_enter(*args)
+        self.topbar.set_active("home")
+
     def _update_topbar(self):
         self.topbar.coins_text = str(int(self.services.sim.state["coins"]))
 
+    # ---------- animation ----------
+    def _ensure_sprites(self):
+        cb = self.canvas_box
+        w, h = cb.size
+        near_h = h * 0.22
+        base_y = cb.y + near_h
+
+        for a in self.services.sim.get_armadillos():
+            if a.id not in self._sprites:
+                x = cb.x + RNG.uniform(cb.x + 40, cb.x + max(120, w * 0.8))
+                vx = RNG.uniform(self.services.settings.ARM_SPEED_MIN, self.services.settings.ARM_SPEED_MAX)
+                if RNG.randint(0, 1) == 0:
+                    vx = -vx
+                self._sprites[a.id] = {"x": x, "y": base_y, "vx": vx, "phase": RNG.uniform(0, 6.28)}
+
+    def _animate(self, dt):
+        # move + bounce, then redraw
+        self._ensure_sprites()
+        cb = self.canvas_box
+        w, h = cb.size
+        if w <= 2 or h <= 2:
+            return
+
+        left = cb.x + self.services.settings.ARM_MARGIN_X
+        right = cb.x + w - self.services.settings.ARM_MARGIN_X
+        base_y = cb.y + h * 0.22
+
+        for a in self.services.sim.get_armadillos()[:8]:
+            s = self._sprites[a.id]
+            s["x"] += s["vx"] * dt
+            s["phase"] += 2 * 3.14159 * self.services.settings.ARM_BOB_FREQ * dt
+            # bounce
+            if s["x"] < left:
+                s["x"] = left
+                s["vx"] = abs(s["vx"])
+            elif s["x"] > right:
+                s["x"] = right
+                s["vx"] = -abs(s["vx"])
+            s["y"] = base_y + self.services.settings.ARM_BOB_AMPLITUDE * (0.5 * (1 + __import__("math").sin(s["phase"])))
+        # draw
+        self._draw_home()
+
+    # ---------- draw ----------
     def refresh(self):
+        # called on enter / resize
+        self._ensure_sprites()
+        self._draw_home()
+
+    def _draw_home(self):
         cb = self.canvas_box
         w, h = cb.size
         x0, y0 = cb.pos
+        if w <= 2 or h <= 2:
+            return
+
+        sky_h = h * 0.60
+        mid_h = h * 0.18
+        near_h = h * 0.22
 
         cb.canvas.clear()
         with cb.canvas:
-            # responsive background
-            sky_h = h * 0.6
-            far_h = h * 0.15
-            near_h = h * 0.15
+            # sky gradient (two rectangles)
+            Color(0.60, 0.84, 1.0, 1.0); Rectangle(pos=(x0, y0 + h - sky_h), size=(w, sky_h))
+            Color(0.55, 0.80, 0.98, 1.0); Rectangle(pos=(x0, y0 + h - sky_h * 0.55), size=(w, sky_h * 0.25))
 
-            Color(0.65, 0.85, 1.0, 1.0); Rectangle(pos=(x0, y0 + h - sky_h), size=(w, sky_h))      # sky on top
-            Color(0.85, 0.8, 0.6, 1.0);  Rectangle(pos=(x0, y0 + near_h + far_h), size=(w, far_h)) # far ground
-            Color(0.9, 0.8, 0.55, 1.0);  Rectangle(pos=(x0, y0), size=(w, near_h))                 # near ground
+            # dunes (middle + near)
+            Color(0.86, 0.80, 0.58, 1.0); Rectangle(pos=(x0, y0 + near_h), size=(w, mid_h))
+            Color(0.92, 0.84, 0.60, 1.0); Rectangle(pos=(x0, y0), size=(w, near_h))
 
-            # armadillos along the near ground
-            x = x0 + 40
-            base_y = y0 + near_h
-            for a in self.services.sim.get_armadillos()[:6]:
+            # fence line for visual depth
+            Color(0.35, 0.28, 0.18, 1.0)
+            y_fence = y0 + near_h + 6
+            Line(points=[x0, y_fence, x0 + w, y_fence], width=1.4)
+
+            # armadillos (animated positions)
+            for a in self.services.sim.get_armadillos()[:8]:
+                s = self._sprites[a.id]
                 r, g, b = a.rgb
-                # shadow
-                Color(0, 0, 0, self.services.settings.SHADOW_ALPHA); Ellipse(pos=(x, base_y - 12), size=(w*0.07, h*0.03))
-                # body
-                Color(r, g, b, 1.0); Ellipse(pos=(x, base_y + 6), size=(w*0.07, h*0.06))
-                # head
-                Ellipse(pos=(x + w*0.045, base_y + h*0.065), size=(w*0.025, h*0.03))
-                x += max(100, w * 0.12)
+
+                # shadow (squash based on x-velocity magnitude)
+                vel_scale = min(1.0, abs(s["vx"]) / self.services.settings.ARM_SPEED_MAX)
+                shadow_w = max(w * 0.06, w * 0.06 + 12 * vel_scale)
+                shadow_h = max(h * 0.025, h * 0.025 + 6 * vel_scale)
+                Color(0, 0, 0, self.services.settings.SHADOW_ALPHA)
+                Ellipse(pos=(s["x"] - shadow_w * 0.5, y0 + near_h * 0.25 - shadow_h * 0.5), size=(shadow_w, shadow_h))
+
+                # body + head (simple “2.5D” ovals)
+                Color(r, g, b, 1.0)
+                Ellipse(pos=(s["x"] - w * 0.035, s["y"]), size=(w * 0.07, h * 0.06))
+                Ellipse(pos=(s["x"] + w * 0.025, s["y"] + h * 0.02), size=(w * 0.03, h * 0.03))
+
+    # end HomeScreen
 
 
 class HabitatScreen(BaseScreen):
@@ -86,6 +161,10 @@ class HabitatScreen(BaseScreen):
         layout.add_widget(self.lbl)
         self.add_widget(layout)
         Clock.schedule_interval(lambda dt: self._update_topbar(), 0.25)
+
+    def on_pre_enter(self, *args):
+        super().on_pre_enter(*args)
+        self.topbar.set_active("habitat")
 
     def _update_topbar(self):
         self.topbar.coins_text = str(int(self.services.sim.state["coins"]))
@@ -114,6 +193,10 @@ class BreedingScreen(BaseScreen):
 
         self.action_btn.bind(on_release=lambda *_: self._breed_demo())
         Clock.schedule_interval(lambda dt: self._update_topbar(), 0.25)
+
+    def on_pre_enter(self, *args):
+        super().on_pre_enter(*args)
+        self.topbar.set_active("breeding")
 
     def _update_topbar(self):
         self.topbar.coins_text = str(int(self.services.sim.state["coins"]))
@@ -147,6 +230,10 @@ class DexScreen(BaseScreen):
         self.add_widget(self.box)
         Clock.schedule_interval(lambda dt: self._update_topbar(), 0.25)
 
+    def on_pre_enter(self, *args):
+        super().on_pre_enter(*args)
+        self.topbar.set_active("dex")
+
     def _update_topbar(self):
         self.topbar.coins_text = str(int(self.services.sim.state["coins"]))
 
@@ -175,6 +262,10 @@ class ShopScreen(BaseScreen):
         self.add_widget(self.box)
         self.feed_btn.bind(on_release=lambda *_: self._feed_demo())
         Clock.schedule_interval(lambda dt: self._update_topbar(), 0.25)
+
+    def on_pre_enter(self, *args):
+        super().on_pre_enter(*args)
+        self.topbar.set_active("shop")
 
     def _update_topbar(self):
         self.topbar.coins_text = str(int(self.services.sim.state["coins"]))
@@ -206,6 +297,10 @@ class SettingsScreen(BaseScreen):
         self.lbl = Label(text="Settings (demo)")
         self.box.add_widget(self.lbl)
         self.add_widget(self.box)
+
+    def on_pre_enter(self, *args):
+        super().on_pre_enter(*args)
+        self.topbar.set_active("settings")
 
     def refresh(self):
         pass
