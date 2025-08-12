@@ -24,7 +24,7 @@ class TopBar(BoxLayout):
         super().__init__(orientation="horizontal", size_hint_y=None, height=48, spacing=6, padding=(8, 6), **kwargs)
         self.services = services
 
-        self.lbl = Label(text="Coins: 0", size_hint_x=None, width=150,
+        self.lbl = Label(text="Coins: 0.0", size_hint_x=None, width=150,
                          halign="left", valign="middle", color=TEXT_COLOR)
         self.lbl.bind(size=lambda *_: setattr(self.lbl, "text_size", self.lbl.size))
         self.add_widget(self.lbl)
@@ -47,13 +47,13 @@ class TopBar(BoxLayout):
         for b in self._btn_map.values():
             self.add_widget(b)
 
-        # update coins text periodically from outside (we expose setter)
         from kivy.clock import Clock
         Clock.schedule_interval(lambda dt: self._tick_coins(), 0.25)
 
     def _tick_coins(self):
         if self.services and self.services.sim:
-            self.lbl.text = f"Coins: {int(self.services.sim.state.get('coins', 0))}"
+            coins = float(self.services.sim.state.get('coins', 0.0))
+            self.lbl.text = f"Coins: {coins:.1f}"
 
     def set_active(self, screen_name: str):
         for name, btn in self._btn_map.items():

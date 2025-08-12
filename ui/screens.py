@@ -29,7 +29,7 @@ class HomeScreen(BaseScreen):
         self.root_box.add_widget(self.canvas_box)
 
         self.action_bar = BoxLayout(orientation="horizontal", size_hint_y=None, height=56, padding=8, spacing=8)
-        self.info_lbl = Label(text="Tap to select. Long-press to drag into a habitat slot.", halign="left", valign="middle")
+        self.info_lbl = Label(text="Tap to select. Long-press OR drag to move into a habitat slot.", halign="left", valign="middle")
         self.info_lbl.bind(size=lambda *_: setattr(self.info_lbl, "text_size", self.info_lbl.size))
         self.feed_btn = Button(text="Feed (+Hunger)")
         self.pet_btn = Button(text="Pet (+Happiness)")
@@ -42,19 +42,18 @@ class HomeScreen(BaseScreen):
         self.feed_btn.bind(on_release=lambda *_: self._feed_selected())
         self.pet_btn.bind(on_release=lambda *_: self._pet_selected())
 
-        # draw/resize
         self.canvas_box.bind(size=self._on_canvas_change, pos=self._on_canvas_change)
 
         # runtime state
         self._sprites = {}          # arm_id -> dict(frames, x, vx, frame, rect)
         self._hab_zones = []        # list of dict(id, rect)
         self._long_press_ev = None  # ClockEvent or None
+        self._hover_zone_id: str | None = None
 
         Clock.schedule_interval(self._animate, 1 / 60.0)
 
     # ---- helpers ----
-    def _on_canvas_change(self, *_):
-        # avoid calling refresh before we are fully constructed
+    def _on_canvas_change(self, *_):  # safe refresh after layout changes
         if hasattr(self, "_sprites"):
             self.refresh()
 
@@ -64,13 +63,13 @@ class HomeScreen(BaseScreen):
     def _update_action_bar(self):
         sid = self._selected_id()
         if not sid:
-            self.info_lbl.text = "Tap to select. Long-press to drag into a habitat slot."
+            self.info_lbl.text = "Tap to select. Long-press OR drag to move into a habitat slot."
             self.feed_btn.disabled = True
             self.pet_btn.disabled = True
             return
         a = next((x for x in self.services.sim.get_armadillos() if x.id == sid), None)
         if not a:
-            self.info_lbl.text = "Tap to select. Long-press to drag into a habitat slot."
+            self.info_lbl.text = "Tap to select. Long-press OR drag to move into a habitat slot."
             self.feed_btn.disabled = True
             self.pet_btn.disabled = True
             return
@@ -88,8 +87,7 @@ class HomeScreen(BaseScreen):
             ui._drag_touch_uid = touch.uid
             ui._drag_started = True
             ui.drag_pos = touch.pos
-            # also mark as selected
-            ui.selected_armadillo_id = arm_id
+            ui.selected_armadillo_id = arm_id  # ensure selected
             self._update_action_bar()
         self._long_press_ev = Clock.schedule_once(start_drag, 0.25)
 
@@ -104,9 +102,12 @@ class HomeScreen(BaseScreen):
                 continue
             x, y, w, h = s["rect"]
             if x <= touch.x <= x + w and y <= touch.y <= y + h:
-                self.services.ui.selected_armadillo_id = a.id
+                ui = self.services.ui
+                ui.selected_armadillo_id = a.id
+                ui._down_arm_id = a.id
+                ui._down_pos = touch.pos
                 self._update_action_bar()
-                self._schedule_longpress(touch, a.id)
+                self._schedule_longpress(touch, a.id)  # mobile long-press
                 return True
 
         # tap empty ground
@@ -116,29 +117,55 @@ class HomeScreen(BaseScreen):
 
     def on_touch_move(self, touch):
         ui = self.services.ui
+
+        # if we haven’t started the drag yet: start when moved > threshold
+        if (not ui._drag_started) and (ui._down_arm_id is not None) and (ui._drag_touch_uid is None):
+            dx = touch.x - ui._down_pos[0]
+            dy = touch.y - ui._down_pos[1]
+            if (dx*dx + dy*dy) ** 0.5 >= ui.DRAG_THRESHOLD_PX:
+                # begin drag on move (desktop-friendly)
+                ui.dragging_id = ui._down_arm_id
+                ui._drag_touch_uid = touch.uid
+                ui._drag_started = True
+
         if ui._drag_touch_uid == touch.uid and ui._drag_started:
             ui.drag_pos = touch.pos
+            # set hover zone for highlight
+            self._hover_zone_id = None
+            for z in self._hab_zones:
+                zx, zy, zw, zh = z["rect"]
+                if zx <= touch.x <= zx + zw and zy <= touch.y <= zy + zh:
+                    self._hover_zone_id = z["id"]
+                    break
             return True
+
         return super().on_touch_move(touch)
 
     def on_touch_up(self, touch):
+        # cancel pending long-press if any
         if self._long_press_ev:
             self._long_press_ev.cancel()
             self._long_press_ev = None
 
         ui = self.services.ui
+        ui._down_arm_id = None  # clear
+
         if ui._drag_touch_uid == touch.uid and ui._drag_started:
             # drop into habitat zone if any
+            dropped = False
             for z in self._hab_zones:
                 zx, zy, zw, zh = z["rect"]
                 if zx <= touch.x <= zx + zw and zy <= touch.y <= zy + zh:
                     self._try_move_to_habitat(ui.dragging_id, z["id"])
+                    dropped = True
                     break
             # reset drag state
             ui._drag_touch_uid = None
             ui._drag_started = False
             ui.dragging_id = None
-            return True
+            self._hover_zone_id = None
+            return True if dropped else True
+
         return super().on_touch_up(touch)
 
     # ---------- quick actions ----------
@@ -221,7 +248,6 @@ class HomeScreen(BaseScreen):
         sset = self.services.settings
         for a in self.services.sim.get_armadillos()[:16]:
             s = self._sprites[a.id]
-            # hunger affects base speed strongly; happiness adds bonus
             hunger_mult = sset.SPEED_HUNGER_MIN + (1 - sset.SPEED_HUNGER_MIN) * (a.hunger / sset.HUNGER_MAX)
             happy_mult = 1.0 + sset.SPEED_HAPPY_BONUS_MAX * (a.happiness / sset.HAPPINESS_MAX)
             vx_eff = s["vx"] * hunger_mult * happy_mult
@@ -246,7 +272,6 @@ class HomeScreen(BaseScreen):
 
     # ---------- drawing ----------
     def _compute_hab_zones(self, x0, y0, w, h, near_h):
-        """Lay out simple drop slots just above the fence."""
         habs = self.services.sim.get_habitats()
         slots = max(1, len(habs))
         if slots == 0:
@@ -273,7 +298,6 @@ class HomeScreen(BaseScreen):
         mid_h = h * 0.19
         near_h = h * 0.16
 
-        # compute drop zones
         self._compute_hab_zones(x0, y0, w, h, near_h)
 
         cb.canvas.clear()
@@ -286,11 +310,16 @@ class HomeScreen(BaseScreen):
             Color(0.92, 0.84, 0.60, 1.0); Rectangle(pos=(x0, y0), size=(w, near_h))
             Color(0.35, 0.28, 0.18, 1.0); Line(points=[x0, y0 + near_h + 6, x0 + w, y0 + near_h + 6], width=1.3)
 
-            # habitat drop zones
+            # habitat drop zones (highlight hover)
             for z in self._hab_zones:
                 zx, zy, zw, zh = z["rect"]
-                Color(0.18, 0.18, 0.18, 0.25); Rectangle(pos=(zx, zy), size=(zw, zh))
-                Color(0.18, 0.18, 0.18, 1.0); Line(rectangle=(zx, zy, zw, zh), width=1.0)
+                if self.services.ui._drag_started and (self._hover_zone_id == z["id"]):
+                    Color(0.22, 0.65, 0.38, 0.35)
+                else:
+                    Color(0.18, 0.18, 0.18, 0.25)
+                Rectangle(pos=(zx, zy), size=(zw, zh))
+                Color(0.22, 0.65, 0.38, 1.0) if (self._hover_zone_id == z["id"]) else Color(0.18, 0.18, 0.18, 1.0)
+                Line(rectangle=(zx, zy, zw, zh), width=1.2 if (self._hover_zone_id == z["id"]) else 1.0)
 
             # sprites
             sset = self.services.settings
@@ -366,7 +395,6 @@ class BreedingScreen(BaseScreen):
         self.btn = Button(text="Breed first M+F adults (start incubation)")
         self.box.add_widget(self.btn)
 
-        # incubator list UI
         self.inc_list = BoxLayout(orientation="vertical", spacing=6)
         self.box.add_widget(self.inc_list)
 
@@ -448,7 +476,7 @@ class ShopScreen(BaseScreen):
     def __init__(self, services, **kwargs):
         super().__init__(services, **kwargs)
         self.box = BoxLayout(orientation="vertical", spacing=12, padding=12)
-        self.info = Label(text="Shop: basic items coming soon.\nTip: long-press on Farm to drag into a habitat slot.")
+        self.info = Label(text="Shop: basic items coming soon.\nTip: long-press or drag on Farm to move into a habitat slot.")
         self.box.add_widget(self.info)
         self.add_widget(self.box)
 
