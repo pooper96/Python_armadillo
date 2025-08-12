@@ -5,7 +5,7 @@ import pytest
 def test_imports():
     import kivy  # noqa
     from ui import constants, widgets, drag  # noqa
-    from ui.screens import home, habitats, breeding, dex, shop  # noqa
+    from ui.formerscreen import home, habitats, breeding, dex, shop  # noqa
 
 def test_app_builds(monkeypatch):
     from main import ArmadilloApp

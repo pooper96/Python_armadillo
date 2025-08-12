@@ -169,13 +169,20 @@ class Root(BoxLayout):
         from ui.screens.shop import ShopScreen  # noqa
 
         # Load kv layout
+        from kivy.factory import Factory
+
         Builder.load_file("ui/layout.kv")
-        # Instantiate screens declared in kv by name:
-        self.sm.add_widget(Builder.template("HomeScreen"))
-        self.sm.add_widget(Builder.template("HabitatsScreen"))
-        self.sm.add_widget(Builder.template("BreedingScreen"))
-        self.sm.add_widget(Builder.template("DexScreen"))
-        self.sm.add_widget(Builder.template("ShopScreen"))
+
+        # Try template first, fall back to Factory instantiation
+        def add(name):
+            try:
+                self.sm.add_widget(Builder.template(name))
+            except Exception:
+                self.sm.add_widget(getattr(Factory, name)())
+
+        for name in ["HomeScreen", "HabitatsScreen", "BreedingScreen", "DexScreen", "ShopScreen"]:
+            add(name)
+
         self.add_widget(self.sm)
         # bottom nav
         self.nav = BottomNav(on_tab=self.switch_to)
