@@ -10,13 +10,13 @@ class Settings:
 
     # RNG / Genetics
     BASE_MUTATION_CHANCE: float = 0.02
-    VARIANCE_STD: float = 0.06  # base RGB variance
+    VARIANCE_STD: float = 0.06
     MAX_VARIANCE: float = 0.18
     WEIGHT_VARIANCE_FACTOR: float = 0.25
     AGE_VARIANCE_FACTOR: float = 0.15
 
-    # Armadillo stages (in ticks)
-    EGG_TICKS: int = 20 * 20
+    # Stages
+    EGG_TICKS: int = 20 * 20          # 20 seconds
     JUVENILE_TICKS: int = 120 * 20
     ADULT_TICKS: int = 99999999
     RETIRE_AGE_TICKS: int = 10 * 60 * 20
@@ -29,6 +29,7 @@ class Settings:
     # Economy
     STARTING_COINS: int = 200
     FEED_COST: int = 2
+    NEW_HABITAT_COST: int = 100
     INCUBATOR_BASE_COST: int = 50
 
     # UI / drawing
@@ -44,21 +45,24 @@ class Settings:
     # Accessibility
     ENABLE_COLORBLIND_NUMERIC_TAGS: bool = True
 
-    # --- Animation / Home scene ---
-    ARM_SPEED_MIN: float = 40.0     # px/s
-    ARM_SPEED_MAX: float = 95.0     # px/s
-    ARM_MARGIN_X: float = 32.0      # left/right padding inside the pen
-    PIXEL_SCALE_MIN: float = 4.0
-    PIXEL_SCALE_MAX: float = 10.0
+    # Animation / Farm scene
+    ARM_SPEED_MIN: float = 40.0
+    ARM_SPEED_MAX: float = 95.0
+    ARM_MARGIN_X: float = 32.0
+    PIXEL_SCALE_MIN: float = 5.0
+    PIXEL_SCALE_MAX: float = 12.0
 
-    # --- Care stats ---
+    # Care stats
     HUNGER_MAX: int = 100
     HAPPINESS_MAX: int = 100
-    HUNGER_DECAY_PER_TICK: float = 0.05    # ~1 per sec at 20 tps
-    HAPPINESS_DECAY_PER_TICK: float = 0.02 # ~0.4 per sec
-    FEED_HUNGER_GAIN: int = 20
-    PET_HAPPINESS_GAIN: int = 15
+    # Decay ~0.5 per second hunger, ~0.2 per second happiness
+    HUNGER_DECAY_PER_TICK: float = 0.025
+    HAPPINESS_DECAY_PER_TICK: float = 0.01
+    FEED_HUNGER_GAIN: int = 40
+    PET_HAPPINESS_GAIN: int = 35
 
-    # Income scaling by mood (applied in habitat payouts)
-    HUNGER_INCOME_MIN_MULT: float = 0.3    # starving earns 30%
-    HAPPINESS_INCOME_BONUS_MAX: float = 0.2  # +20% at 100 happiness
+    # How stats affect movement & income
+    SPEED_HUNGER_MIN: float = 0.30        # starving moves at 30% speed
+    SPEED_HAPPY_BONUS_MAX: float = 0.40   # +40% speed at 100 happiness
+    HUNGER_INCOME_MIN_MULT: float = 0.30  # starving earns 30%
+    HAPPINESS_INCOME_BONUS_MAX: float = 0.30  # +30% at 100 happiness

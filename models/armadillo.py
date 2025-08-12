@@ -9,15 +9,15 @@ class Armadillo:
     nickname: str
     rgb: Tuple[float, float, float]
     hex_color: str
-    weight: float  # 0.5..1.5 (demo-friendly)
+    weight: float
     age_ticks: int
-    stage: str  # "egg","juvenile","adult","retired"
-    sex: str    # "M" or "F"
-    traits: Dict[str, tuple]  # each: (allele_a, allele_b, phenotype)
-    rarity: float  # 0..1 used for yield scaling
+    stage: str
+    sex: str
+    traits: Dict[str, tuple]
+    rarity: float
     habitat_id: str | None
-    hunger: int = 80      # 0..100
-    happiness: int = 80   # 0..100
+    hunger: int = 80
+    happiness: int = 80
 
     def to_dict(self) -> Dict:
         d = asdict(self)
@@ -36,10 +36,7 @@ class Armadillo:
     def new_starter(settings, nickname="Armi") -> "Armadillo":
         r, g, b = 0.75, 0.65, 0.5
         sex = "M" if RNG.randint(0, 1) == 0 else "F"
-        traits = {
-            "pattern": ("banded", "plain", "banded"),
-            "ears": ("tall", "short", "tall"),
-        }
+        traits = {"pattern": ("banded", "plain", "banded"), "ears": ("tall", "short", "tall")}
         return Armadillo(
             id=f"arm_{RNG.randint(100000,999999)}",
             nickname=nickname,
