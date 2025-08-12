@@ -1,81 +1,97 @@
 from __future__ import annotations
 from typing import List, Tuple, Dict
 from kivy.graphics.texture import Texture
-from settings import Settings
 
 
-def _to_rgba_bytes(r: float, g: float, b: float, a: float = 1.0) -> bytes:
-    return bytes([int(max(0, min(1, r)) * 255),
-                  int(max(0, min(1, g)) * 255),
-                  int(max(0, min(1, b)) * 255),
-                  int(max(0, min(1, a)) * 255)])
+def _clamp01(x: float) -> float:
+    return 0 if x < 0 else 1 if x > 1 else x
 
 
-def _tint(base: Tuple[float, float, float], tint_rgb: Tuple[float, float, float]) -> Tuple[float, float, float]:
-    # simple multiply tint (keeps pixel-art palette feel)
-    return (base[0] * tint_rgb[0], base[1] * tint_rgb[1], base[2] * tint_rgb[2])
+def _rgba(r, g, b, a=1.0) -> bytes:
+    return bytes([int(_clamp01(r) * 255),
+                  int(_clamp01(g) * 255),
+                  int(_clamp01(b) * 255),
+                  int(_clamp01(a) * 255)])
+
+
+def _mul(c: Tuple[float, float, float], t: Tuple[float, float, float]):
+    return (c[0]*t[0], c[1]*t[1], c[2]*t[2])
 
 
 class ProceduralAssets:
     """
-    Builds tiny 16x12 pixel sprites for armadillos and returns Kivy Textures.
-    Two frames = simple waddle. We scale them with mag_filter='nearest' for crisp pixels.
+    Generates 24x16 pixel-art armadillo sprites in 4 frames (walk cycle).
+    Textures are scaled with nearest-neighbor for crisp pixels.
     """
-    def __init__(self, settings: Settings):
+    def __init__(self, settings):
         self.settings = settings
-        self._cache: Dict[Tuple[Tuple[float, float, float], int], Texture] = {}
+        self._cache: Dict[Tuple[Tuple[float,float,float], int], Texture] = {}
 
+    # public
     def armadillo_frames(self, rgb: Tuple[float, float, float]) -> List[Texture]:
-        # Two frames keyed by frame index
-        return [self._get_frame(rgb, 0), self._get_frame(rgb, 1)]
+        return [self._frame(rgb, i) for i in range(4)]
 
-    # ---- internals ----
-    def _get_frame(self, rgb: Tuple[float, float, float], frame: int) -> Texture:
-        key = (rgb, frame)
+    # internals
+    def _frame(self, rgb, idx) -> Texture:
+        key = (rgb, idx)
         if key in self._cache:
             return self._cache[key]
 
-        w, h = 16, 12
+        w, h = 24, 16
         buf = bytearray(w * h * 4)
 
-        sand = (0.82, 0.74, 0.57)
-        shell = _tint((0.7, 0.62, 0.5), rgb)
-        head = _tint((0.8, 0.7, 0.55), rgb)
-        leg = _tint((0.55, 0.48, 0.38), rgb)
-        eye = (0.1, 0.1, 0.1)
-
-        def put(px, py, color):
+        def put(px, py, col):
             if 0 <= px < w and 0 <= py < h:
                 i = (py * w + px) * 4
-                rb = _to_rgba_bytes(*color)
-                buf[i:i+4] = rb
+                buf[i:i+4] = _rgba(*col)
 
         # clear transparent
+        trans = _rgba(0, 0, 0, 0)
         for i in range(0, len(buf), 4):
-            buf[i:i+4] = _to_rgba_bytes(0, 0, 0, 0)
+            buf[i:i+4] = trans
 
-        # very simple side view (12x6 body)
-        # body (shell plates as 3 stripes)
-        for y in range(4, 9):
-            for x in range(2, 13):
-                c = shell
-                if y in (5, 7, 8):  # darker strips
-                    c = _tint((0.85, 0.85, 0.85), shell)
-                put(x, y, c)
+        # palette
+        shell = _mul((0.72, 0.64, 0.52), rgb)
+        shell_dark = _mul((0.60, 0.54, 0.44), rgb)
+        head = _mul((0.86, 0.78, 0.62), rgb)
+        leg = _mul((0.40, 0.35, 0.28), rgb)
+        ear = head
+        tail = shell_dark
+        eye = (0.08, 0.08, 0.08)
 
-        # head
-        for y in range(5, 8):
-            for x in range(12, 15):
+        # body shell (rounded rectangle)
+        for y in range(6, 13):
+            for x in range(3, 18):
+                # carve rounded top
+                if y == 6 and x in (3, 17):
+                    continue
+                put(x, y, shell)
+        # bands
+        for y in (7, 9, 11):
+            for x in range(4, 17):
+                put(x, y, shell_dark)
+
+        # head + snout
+        for y in range(7, 12):
+            for x in range(17, 22):
                 put(x, y, head)
-        put(14, 7, eye)
+        for x in range(22, 24):
+            put(x, 9, head)
+        put(21, 10, eye)
+        # ear
+        put(20, 12, ear)
 
-        # legs (alternate frame offsets)
-        leg_y = 3 if frame == 0 else 4
-        for x in (4, 9):
-            put(x, leg_y, leg)
-        leg_y2 = 4 if frame == 0 else 3
-        for x in (6, 11):
-            put(x, leg_y2, leg)
+        # tail
+        for y in (8, 9, 10):
+            put(2, y, tail)
+
+        # legs – alternate by frame: 0/2 vs 1/3
+        low = 4 if idx % 2 == 0 else 5
+        hi = 5 if idx % 2 == 0 else 4
+        for x in (5, 9):  # front pair
+            put(x, low, leg)
+        for x in (12, 15):  # back pair
+            put(x, hi, leg)
 
         # convert to texture
         tex = Texture.create(size=(w, h))

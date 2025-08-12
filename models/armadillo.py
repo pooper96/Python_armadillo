@@ -16,6 +16,8 @@ class Armadillo:
     traits: Dict[str, tuple]  # each: (allele_a, allele_b, phenotype)
     rarity: float  # 0..1 used for yield scaling
     habitat_id: str | None
+    hunger: int = 80      # 0..100
+    happiness: int = 80   # 0..100
 
     def to_dict(self) -> Dict:
         d = asdict(self)
@@ -26,11 +28,12 @@ class Armadillo:
     def from_dict(d: Dict) -> "Armadillo":
         d = dict(d)
         d["rgb"] = tuple(d["rgb"])
+        d.setdefault("hunger", 80)
+        d.setdefault("happiness", 80)
         return Armadillo(**d)
 
     @staticmethod
     def new_starter(settings, nickname="Armi") -> "Armadillo":
-        # pleasant desert-ish starter tones
         r, g, b = 0.75, 0.65, 0.5
         sex = "M" if RNG.randint(0, 1) == 0 else "F"
         traits = {
@@ -48,7 +51,9 @@ class Armadillo:
             sex=sex,
             traits=traits,
             rarity=0.35,
-            habitat_id=None
+            habitat_id=None,
+            hunger=80,
+            happiness=80,
         )
 
     def is_adult(self, settings) -> bool:
@@ -80,5 +85,7 @@ class Armadillo:
             sex=sex,
             traits=child_traits,
             rarity=rarity,
-            habitat_id=None
+            habitat_id=None,
+            hunger=50,
+            happiness=70,
         )

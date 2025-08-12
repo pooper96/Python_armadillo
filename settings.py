@@ -45,8 +45,20 @@ class Settings:
     ENABLE_COLORBLIND_NUMERIC_TAGS: bool = True
 
     # --- Animation / Home scene ---
-    ARM_SPEED_MIN: float = 35.0     # px/s
-    ARM_SPEED_MAX: float = 80.0     # px/s
-    ARM_BOB_AMPLITUDE: float = 6.0  # px vertical bob
-    ARM_BOB_FREQ: float = 1.2       # cycles per second
-    ARM_MARGIN_X: float = 24.0      # left/right padding inside the pen
+    ARM_SPEED_MIN: float = 40.0     # px/s
+    ARM_SPEED_MAX: float = 95.0     # px/s
+    ARM_MARGIN_X: float = 32.0      # left/right padding inside the pen
+    PIXEL_SCALE_MIN: float = 4.0
+    PIXEL_SCALE_MAX: float = 10.0
+
+    # --- Care stats ---
+    HUNGER_MAX: int = 100
+    HAPPINESS_MAX: int = 100
+    HUNGER_DECAY_PER_TICK: float = 0.05    # ~1 per sec at 20 tps
+    HAPPINESS_DECAY_PER_TICK: float = 0.02 # ~0.4 per sec
+    FEED_HUNGER_GAIN: int = 20
+    PET_HAPPINESS_GAIN: int = 15
+
+    # Income scaling by mood (applied in habitat payouts)
+    HUNGER_INCOME_MIN_MULT: float = 0.3    # starving earns 30%
+    HAPPINESS_INCOME_BONUS_MAX: float = 0.2  # +20% at 100 happiness
