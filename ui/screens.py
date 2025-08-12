@@ -26,24 +26,24 @@ class HomeScreen(BaseScreen):
     def __init__(self, services, **kwargs):
         super().__init__(services, **kwargs)
         self.root_box = BoxLayout(orientation="vertical")
-        self.top = TopBar(services)
-        self.root_box.add_widget(self.top)
+        self.topbar = TopBar(services)
+        self.root_box.add_widget(self.topbar)
         self.canvas_box = BoxLayout()
         self.root_box.add_widget(self.canvas_box)
         self.add_widget(self.root_box)
 
-        # FIXED: use setattr, not __setattr__ chain
-        self.top.home_btn.bind(on_release=lambda *_: setattr(self.manager, "current", "home"))
-        self.top.hab_btn.bind(on_release=lambda *_: setattr(self.manager, "current", "habitat"))
-        self.top.breed_btn.bind(on_release=lambda *_: setattr(self.manager, "current", "breeding"))
-        self.top.dex_btn.bind(on_release=lambda *_: setattr(self.manager, "current", "dex"))
-        self.top.shop_btn.bind(on_release=lambda *_: setattr(self.manager, "current", "shop"))
-        self.top.settings_btn.bind(on_release=lambda *_: setattr(self.manager, "current", "settings"))
+        # Navigation bindings
+        self.topbar.home_btn.bind(on_release=lambda *_: setattr(self.manager, "current", "home"))
+        self.topbar.hab_btn.bind(on_release=lambda *_: setattr(self.manager, "current", "habitat"))
+        self.topbar.breed_btn.bind(on_release=lambda *_: setattr(self.manager, "current", "breeding"))
+        self.topbar.dex_btn.bind(on_release=lambda *_: setattr(self.manager, "current", "dex"))
+        self.topbar.shop_btn.bind(on_release=lambda *_: setattr(self.manager, "current", "shop"))
+        self.topbar.settings_btn.bind(on_release=lambda *_: setattr(self.manager, "current", "settings"))
 
         Clock.schedule_interval(lambda dt: self._update_topbar(), 0.25)
 
     def _update_topbar(self):
-        self.top.coins_text = str(int(self.services.sim.state["coins"]))
+        self.topbar.coins_text = str(int(self.services.sim.state["coins"]))
 
     def refresh(self):
         self.canvas_box.canvas.clear()
@@ -74,8 +74,8 @@ class HabitatScreen(BaseScreen):
     def __init__(self, services, **kwargs):
         super().__init__(services, **kwargs)
         layout = BoxLayout(orientation="vertical", spacing=6, padding=6)
-        self.top = TopBar(services)
-        layout.add_widget(self.top)
+        self.topbar = TopBar(services)
+        layout.add_widget(self.topbar)
         self.lbl = Label(text="Habitats and residents")
         layout.add_widget(self.lbl)
         self.add_widget(layout)
@@ -83,7 +83,7 @@ class HabitatScreen(BaseScreen):
         Clock.schedule_interval(lambda dt: self._update_topbar(), 0.25)
 
     def _update_topbar(self):
-        self.top.coins_text = str(int(self.services.sim.state["coins"]))
+        self.topbar.coins_text = str(int(self.services.sim.state["coins"]))
 
     def refresh(self):
         arms = self.services.sim.get_armadillos()
@@ -99,8 +99,8 @@ class BreedingScreen(BaseScreen):
     def __init__(self, services, **kwargs):
         super().__init__(services, **kwargs)
         self.box = BoxLayout(orientation="vertical", spacing=6, padding=6)
-        self.top = TopBar(services)
-        self.box.add_widget(self.top)
+        self.topbar = TopBar(services)
+        self.box.add_widget(self.topbar)
         self.lbl = Label(text="Select first two adults to breed.")
         self.box.add_widget(self.lbl)
         self.action_btn = Button(text="Breed first M+F adults (demo)")
@@ -111,7 +111,7 @@ class BreedingScreen(BaseScreen):
         Clock.schedule_interval(lambda dt: self._update_topbar(), 0.25)
 
     def _update_topbar(self):
-        self.top.coins_text = str(int(self.services.sim.state["coins"]))
+        self.topbar.coins_text = str(int(self.services.sim.state["coins"]))
 
     def _breed_demo(self):
         arms = [a for a in self.services.sim.get_armadillos() if a.stage == "adult"]
@@ -136,15 +136,15 @@ class DexScreen(BaseScreen):
     def __init__(self, services, **kwargs):
         super().__init__(services, **kwargs)
         self.box = BoxLayout(orientation="vertical", spacing=6, padding=6)
-        self.top = TopBar(services)
-        self.box.add_widget(self.top)
+        self.topbar = TopBar(services)
+        self.box.add_widget(self.topbar)
         self.lbl = Label(text="Dex/Collection")
         self.box.add_widget(self.lbl)
         self.add_widget(self.box)
         Clock.schedule_interval(lambda dt: self._update_topbar(), 0.25)
 
     def _update_topbar(self):
-        self.top.coins_text = str(int(self.services.sim.state["coins"]))
+        self.topbar.coins_text = str(int(self.services.sim.state["coins"]))
 
     def refresh(self):
         arms = self.services.sim.get_armadillos()
@@ -162,8 +162,8 @@ class ShopScreen(BaseScreen):
     def __init__(self, services, **kwargs):
         super().__init__(services, **kwargs)
         self.box = BoxLayout(orientation="vertical", spacing=6, padding=6)
-        self.top = TopBar(services)
-        self.box.add_widget(self.top)
+        self.topbar = TopBar(services)
+        self.box.add_widget(self.topbar)
         self.info = Label(text="Shop: Feed (2 coins). Feeding slightly adjusts weight.\nTap to feed the first non-egg.")
         self.box.add_widget(self.info)
         self.feed_btn = Button(text="Feed first non-egg (demo)")
@@ -173,7 +173,7 @@ class ShopScreen(BaseScreen):
         Clock.schedule_interval(lambda dt: self._update_topbar(), 0.25)
 
     def _update_topbar(self):
-        self.top.coins_text = str(int(self.services.sim.state["coins"]))
+        self.topbar.coins_text = str(int(self.services.sim.state["coins"]))
 
     def _feed_demo(self):
         st = self.services.sim.state
@@ -198,8 +198,8 @@ class SettingsScreen(BaseScreen):
     def __init__(self, services, **kwargs):
         super().__init__(services, **kwargs)
         self.box = BoxLayout(orientation="vertical", spacing=6, padding=6)
-        self.top = TopBar(services)
-        self.box.add_widget(self.top)
+        self.topbar = TopBar(services)
+        self.box.add_widget(self.topbar)
         self.lbl = Label(text="Settings (demo)")
         self.box.add_widget(self.lbl)
         self.add_widget(self.box)
