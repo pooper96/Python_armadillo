@@ -35,3 +35,6 @@ bin/
 .pytest_cache/
 coverage.xml
 htmlcov/
+
+# Saves
+armadillo_farmer_save.json

@@ -7,7 +7,7 @@ from kivy.clock import Clock
 
 from ui.widgets import TopBar
 from models.armadillo import Armadillo
-from models.genetics import rgb_to_hex, RNG
+from models.genetics import RNG
 
 
 class BaseScreen(Screen):
@@ -32,7 +32,8 @@ class HomeScreen(BaseScreen):
         self.root_box.add_widget(self.canvas_box)
         self.add_widget(self.root_box)
 
-        self.top.home_btn.bind(on_release=lambda *_: self.manager.current.__setattr__("current", "home"))
+        # FIXED: use setattr, not __setattr__ chain
+        self.top.home_btn.bind(on_release=lambda *_: setattr(self.manager, "current", "home"))
         self.top.hab_btn.bind(on_release=lambda *_: setattr(self.manager, "current", "habitat"))
         self.top.breed_btn.bind(on_release=lambda *_: setattr(self.manager, "current", "breeding"))
         self.top.dex_btn.bind(on_release=lambda *_: setattr(self.manager, "current", "dex"))
@@ -122,7 +123,7 @@ class BreedingScreen(BaseScreen):
         child = Armadillo.breed(self.services.settings, mom, dad)
         st = self.services.sim.state
         st["armadillos"].append(child.to_dict())
-        self.services.save.atomic_save(st)
+        # No immediate disk write; autosave will catch it
         self.lbl.text = f"New egg! Color {child.hex_color}"
 
     def refresh(self):
@@ -186,7 +187,7 @@ class ShopScreen(BaseScreen):
             return
         target.weight = max(0.5, min(1.5, target.weight + (RNG.random() - 0.5) * 0.1))
         self.services.sim.set_armadillos(arms)
-        self.services.save.atomic_save(st)
+        # No immediate disk write; autosave will catch it
         self.info.text = f"Fed {target.nickname}. New weight: {target.weight:.2f}"
 
     def refresh(self):

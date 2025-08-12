@@ -3,8 +3,12 @@ from kivy.config import Config
 # Mobile-friendly defaults before any Kivy import that creates a window
 Config.set('graphics', 'multisamples', '0')
 Config.set('kivy', 'log_enable', '1')
+Config.set('kivy', 'keyboard_mode', 'systemanddock')  # better soft keyboard behavior
 
 from kivy.app import App
+from kivy.core.window import Window
+Window.softinput_mode = "pan"  # move content up when soft keyboard appears
+
 from kivy.uix.screenmanager import ScreenManager
 from kivy.clock import Clock
 
@@ -57,7 +61,7 @@ class ArmadilloFarmerApp(App):
             a1 = Armadillo.new_starter(self.settings, nickname="Sandy")
             a2 = Armadillo.new_starter(self.settings, nickname="Pebble")
             state["armadillos"].extend([a1.to_dict(), a2.to_dict()])
-            self.save_service.atomic_save(state)
+            self.save_service.atomic_save_if_dirty(state)
 
         # Screen manager
         sm = ScreenManager()
@@ -70,8 +74,8 @@ class ArmadilloFarmerApp(App):
 
         # Start non-blocking tick loop
         Clock.schedule_interval(self.sim_service.tick, 1.0 / self.settings.TICKS_PER_SEC)
-        # Periodic autosave
-        Clock.schedule_interval(lambda dt: self.save_service.atomic_save(self.sim_service.state), self.settings.AUTOSAVE_INTERVAL_SEC)
+        # Periodic autosave (only if state changed)
+        Clock.schedule_interval(lambda dt: self.save_service.atomic_save_if_dirty(self.sim_service.state), self.settings.AUTOSAVE_INTERVAL_SEC)
 
         return sm
 

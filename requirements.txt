@@ -2,3 +2,10 @@ kivy>=2.3.1,<2.4
 pydantic==2.8.2
 ujson==5.10.0
 pytest==8.3.2
+requirements = python3,kivy,ujson,pydantic
+p4a.branch = stable
+android.api = 33
+android.minapi = 21
+android.ndk = 25b
+android.archs = arm64-v8a,armeabi-v7a
+orientation = landscape
