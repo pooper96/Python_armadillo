@@ -1,0 +1,342 @@
+# ui/layout.kv
+#:import dp kivy.metrics.dp
+#:import sp kivy.metrics.sp
+#:import ALabel ui.widgets.ALabel
+#:import Counter ui.widgets.Counter
+#:import TopBar ui.widgets.TopBar
+#:import BottomNav ui.widgets.BottomNav
+#:import Card ui.widgets.Card
+#:import SmoothProgress ui.widgets.SmoothProgress
+#:import Dialog ui.widgets.Dialog
+#:import PenWidget ui.screens.home.PenWidget
+#:import ArmadilloWidget ui.screens.home.ArmadilloWidget
+#:import HabitatCard ui.screens.habitats.HabitatCard
+#:import ParentSlot ui.screens.breeding.ParentSlot
+#:import BG ui.constants.BG
+#:import CARD ui.constants.CARD
+#:import ACCENT ui.constants.ACCENT
+#:import TEXT ui.constants.TEXT
+#:import TEXT_DIM ui.constants.TEXT_DIM
+#:import TOPBAR_H ui.constants.TOPBAR_H
+#:import BOTNAV_H ui.constants.BOTNAV_H
+
+<NavButton@ButtonBehavior+BoxLayout>:
+    orientation: "vertical"
+    padding: dp(6), dp(6)
+    spacing: dp(2)
+    size_hint_x: 1
+    canvas.before:
+        Color:
+            rgba: (ACCENT[0], ACCENT[1], ACCENT[2], .18) if self.active else (0,0,0,0)
+        RoundedRectangle:
+            pos: self.pos
+            size: self.size
+            radius: [dp(14),]*4
+    ALabel:
+        text: root.icon
+        base_size: sp(18)
+        halign: "center"
+        valign: "middle"
+        size_hint_y: None
+        height: dp(18)
+    ALabel:
+        text: root.label
+        base_size: sp(12)
+        color: TEXT_DIM
+
+<TopBar>:
+    orientation: "horizontal"
+    spacing: dp(8)
+    ALabel:
+        text: root.title
+        base_size: sp(18)
+        bold: True
+        valign: "middle"
+        halign: "left"
+    Widget:
+    BoxLayout:
+        size_hint_x: None
+        width: dp(140)
+        spacing: dp(6)
+        padding: dp(6), 0
+        canvas.before:
+            Color:
+                rgba: (1,1,1,.04)
+            RoundedRectangle:
+                pos: self.pos
+                size: self.size
+                radius: [dp(12),]*4
+        ALabel:
+            text: u"\u25CF"  # dot icon placeholder
+            base_size: sp(16)
+            color: ACCENT
+            size_hint_x: None
+            width: dp(16)
+            halign: "center"
+            valign: "middle"
+        Counter:
+            id: coin_counter
+            value: app.state.coins
+            base_size: sp(16)
+    Button:
+        text: u"\u2699"  # settings gear
+        size_hint_x: None
+        width: dp(48)
+        on_release: root.on_settings()
+
+<BottomNav>:
+    padding: dp(8), dp(8)
+    spacing: dp(8)
+    NavButton:
+        tab: "home"; icon: u"\u2302"; label: "Home"; active: root.current=="home"
+        on_release: root.on_tab("home")
+    NavButton:
+        tab: "habitats"; icon: u"\U0001F333"; label: "Habitats"; active: root.current=="habitats"
+        on_release: root.on_tab("habitats")
+    NavButton:
+        tab: "breeding"; icon: u"\U0001F423"; label: "Breeding"; active: root.current=="breeding"
+        on_release: root.on_tab("breeding")
+    NavButton:
+        tab: "dex"; icon: u"\U0001F4D6"; label: "Dex"; active: root.current=="dex"
+        on_release: root.on_tab("dex")
+    NavButton:
+        tab: "shop"; icon: u"\U0001F6D2"; label: "Shop"; active: root.current=="shop"
+        on_release: root.on_tab("shop")
+
+# ---------- Screens ----------
+<HomeScreen@ui.screens.home.HomeScreen>:
+    name: "home"
+    BoxLayout:
+        orientation: "vertical"
+        padding: dp(12), 0
+        spacing: dp(8)
+        # Horizontal habitat strip
+        ScrollView:
+            do_scroll_x: True
+            do_scroll_y: False
+            bar_width: 0
+            size_hint_y: None
+            height: dp(160)
+            GridLayout:
+                id: pens_strip
+                cols: 0
+                rows: 1
+                size_hint_x: None
+                width: self.minimum_width
+                spacing: dp(8)
+                padding: dp(2), dp(2)
+                on_parent: self.clear_widgets(); [self.add_widget(PenWidget(pen_index=i, name=p['name'])) for i, p in enumerate(root.pens)]
+        # Selected info bar + HUD actions
+        BoxLayout:
+            size_hint_y: None
+            height: dp(96)
+            spacing: dp(8)
+            padding: dp(8), dp(8)
+            canvas.before:
+                Color:
+                    rgba: (1,1,1,.03)
+                RoundedRectangle:
+                    pos: self.pos
+                    size: self.size
+                    radius: [dp(14),]*4
+            BoxLayout:
+                orientation: "vertical"
+                ALabel:
+                    text: "Selected: " + (root.selected_id if root.selected_id else "None")
+                    base_size: sp(14)
+                SmoothProgress:
+                    height: dp(8)
+                    value: 0.4
+                SmoothProgress:
+                    height: dp(8)
+                    value: 0.7
+            BoxLayout:
+                size_hint_x: None
+                width: dp(200)
+                spacing: dp(8)
+                Button:
+                    text: "Feed"
+                    on_release: root.feed_selected()
+                Button:
+                    text: "Pet"
+                    on_release: root.pet_selected()
+
+<PenWidget>:
+    orientation: "vertical"
+    size_hint: None, 1
+    width: dp(240)
+    padding: dp(8), dp(8)
+    spacing: dp(6)
+    canvas.before:
+        Color:
+            rgba: CARD
+        RoundedRectangle:
+            pos: self.pos
+            size: self.size
+            radius: [dp(14),]*4
+    ALabel:
+        text: root.name
+        base_size: sp(14)
+        bold: True
+    GridLayout:
+        id: grid
+        cols: 4
+        rows: 2
+        spacing: dp(4)
+        size_hint_y: None
+        height: dp(100)
+        on_parent:
+            self.clear_widgets()
+            # populate 8 "cells" with armadillos in this pen (simplified render)
+            app = App.get_running_app()
+            ids_in_pen = [a['id'] for a in app.state.armadillos if a['pen']==root.pen_index]
+            # fill with tokens
+            for i in range(8):
+                if i < len(ids_in_pen):
+                    a_id = ids_in_pen[i]
+                    w = ArmadilloWidget(armadillo_id=a_id, size_hint=(None,None), size=(dp(48), dp(48)))
+                    self.add_widget(w)
+                else:
+                    self.add_widget(Widget(size_hint=(None,None), size=(dp(48), dp(48))))
+    Button:
+        size_hint_y: None
+        height: dp(32)
+        text: "Details"
+
+<HabitatsScreen@ui.screens.habitats.HabitatsScreen>:
+    name: "habitats"
+    ScrollView:
+        bar_width: 0
+        GridLayout:
+            id: grid
+            cols: 1
+            size_hint_y: None
+            height: self.minimum_height
+            spacing: dp(8)
+            padding: dp(12), dp(12)
+            on_parent:
+                self.clear_widgets()
+                for i, h in enumerate(root.habitats):
+                    self.add_widget(HabitatCard(idx=i, name=h['name'], capacity=h['cap'], yield_mod=h['yield'], biome=h['biome']))
+<HabitatCard>:
+    size_hint_y: None
+    height: dp(120)
+    padding: dp(12), dp(12)
+    spacing: dp(6)
+    canvas.before:
+        Color:
+            rgba: CARD
+        RoundedRectangle:
+            pos: self.pos
+            size: self.size
+            radius: [dp(14),]*4
+    BoxLayout:
+        orientation: "vertical"
+        ALabel:
+            text: root.name
+            base_size: sp(16)
+            bold: True
+        ALabel:
+            text: f"Capacity: {root.capacity}  Yield: {root.yield_mod:.1f}  Biome: {root.biome}"
+            base_size: sp(13)
+            color: TEXT_DIM
+        Button:
+            text: "Upgrade"
+            size_hint_y: None
+            height: dp(36)
+            on_release: root.upgrade()
+
+<BreedingScreen@ui.screens.breeding.BreedingScreen>:
+    name: "breeding"
+    BoxLayout:
+        orientation: "vertical"
+        padding: dp(12), dp(12)
+        spacing: dp(8)
+        BoxLayout:
+            spacing: dp(8)
+            ParentSlot:
+                size_hint_y: None
+                height: dp(80)
+                on_armadillo_id:
+                    root.parent_a = self.armadillo_id
+            ParentSlot:
+                size_hint_y: None
+                height: dp(80)
+                on_armadillo_id:
+                    root.parent_b = self.armadillo_id
+            Button:
+                text: "Start"
+                on_release: root.start()
+        ALabel:
+            text: "Incubator Queue"
+            base_size: sp(14)
+        GridLayout:
+            cols: 1
+            size_hint_y: None
+            height: self.minimum_height
+            spacing: dp(6)
+            RecycleView:
+                viewclass: 'Card'
+                size_hint_y: None
+                height: dp(200)
+                data: [{'height':dp(80)} for _ in root.queue]
+                RecycleBoxLayout:
+                    default_size: None, dp(80)
+                    default_size_hint: 1, None
+                    size_hint_y: None
+                    height: self.minimum_height
+                    spacing: dp(6)
+
+<DexScreen@ui.screens.dex.DexScreen>:
+    name: "dex"
+    BoxLayout:
+        orientation: "vertical"
+        padding: dp(12), dp(12)
+        spacing: dp(8)
+        RecycleView:
+            viewclass: 'Card'
+            data: [{'height': dp(84)} for _ in root.items]
+            RecycleBoxLayout:
+                default_size: None, dp(84)
+                default_size_hint: 1, None
+                size_hint_y: None
+                height: self.minimum_height
+                spacing: dp(8)
+
+<ShopScreen@ui.screens.shop.ShopScreen>:
+    name: "shop"
+    BoxLayout:
+        orientation: "vertical"
+        padding: dp(12), dp(12)
+        spacing: dp(8)
+        BoxLayout:
+            size_hint_y: None
+            height: dp(40)
+            ToggleButton:
+                text: "Packs"
+                group: "shop"
+                state: "down" if root.tab=="packs" else "normal"
+                on_state: root.tab="packs" if self.state=="down" else root.tab
+            ToggleButton:
+                text: "Upgrades"
+                group: "shop"
+                state: "down" if root.tab=="upgrades" else "normal"
+                on_state: root.tab="upgrades" if self.state=="down" else root.tab
+        BoxLayout:
+            RecycleView:
+                id: rv
+                viewclass: 'Card'
+                data: [{'height': dp(80)} for _ in (root.packs if root.tab=="packs" else root.upgrades)]
+                RecycleBoxLayout:
+                    default_size: None, dp(80)
+                    default_size_hint: 1, None
+                    size_hint_y: None
+                    height: self.minimum_height
+                    spacing: dp(8)
+        BoxLayout:
+            size_hint_y: None
+            height: dp(48)
+            Button:
+                text: "Buy Selected (stub)"
+                on_release:
+                    root.buy_pack(0) if root.tab=="packs" else root.buy_upgrade(0)
