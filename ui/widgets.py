@@ -15,7 +15,7 @@ from kivy.uix.behaviors import ButtonBehavior
 from kivy.uix.modalview import ModalView
 from kivy.animation import Animation
 from kivy.graphics import Color, RoundedRectangle, Rectangle
-from kivy.app import App  # <-- use App.get_running_app()
+from kivy.app import App  # correct API for running app
 
 from .constants import (
     BG,
@@ -59,7 +59,6 @@ class ALabel(Label):
 
     def _apply(self, *a):
         app = App.get_running_app()
-        # app can be None during very early import paths in some environments
         mult = 1.15 if (app and getattr(app, "large_text", False)) else 1.0
         self.font_size = self.base_size * mult
 
@@ -233,9 +232,18 @@ class ToastManager:
 
     @classmethod
     def _dismiss(cls, lab):
-        Animation(opacity=0, d=0.2).bind(
-            on_complete=lambda *_: cls._overlay.remove_widget(lab)
-        ).start(lab)
+        """Fade out and remove the toast; safe if overlay went away."""
+        try:
+            anim = Animation(opacity=0, d=0.2)
+            def _remove(*_):
+                if cls._overlay and lab.parent is cls._overlay:
+                    cls._overlay.remove_widget(lab)
+            anim.bind(on_complete=_remove)
+            anim.start(lab)
+        except Exception:
+            # Hard fallback remove
+            if cls._overlay and lab.parent is cls._overlay:
+                cls._overlay.remove_widget(lab)
 
 
 class Dialog(ModalView):

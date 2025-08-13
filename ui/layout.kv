@@ -137,12 +137,16 @@
 
 # ---------- Screens ----------
 
+# ... (keep the rest of your file the same)
+
 <HomeScreen@ui.screens.home.HomeScreen>:
     name: "home"
     BoxLayout:
         orientation: "vertical"
         padding: dp(12), 0
         spacing: dp(8)
+
+        # Horizontal habitat strip (Python will populate)
         ScrollView:
             do_scroll_x: True
             do_scroll_y: False
@@ -157,6 +161,8 @@
                 width: self.minimum_width
                 spacing: dp(8)
                 padding: dp(2), dp(2)
+
+        # Selected info bar + HUD actions
         BoxLayout:
             size_hint_y: None
             height: dp(96)
@@ -169,27 +175,36 @@
                     pos: self.pos
                     size: self.size
                     radius: [dp(14),]*4
+
             BoxLayout:
                 orientation: "vertical"
                 ALabel:
                     text: "Selected: " + (root.selected_id if root.selected_id else "None")
                     base_size: sp(14)
                 SmoothProgress:
+                    id: bar_hunger
                     height: dp(8)
-                    value: 0.4
+                    value: 0.0
                 SmoothProgress:
+                    id: bar_happy
                     height: dp(8)
-                    value: 0.7
+                    value: 0.0
+
             BoxLayout:
                 size_hint_x: None
                 width: dp(200)
                 spacing: dp(8)
                 Button:
+                    id: btn_feed
                     text: "Feed"
+                    disabled: True
                     on_release: root.feed_selected()
                 Button:
+                    id: btn_pet
                     text: "Pet"
+                    disabled: True
                     on_release: root.pet_selected()
+
 
 <PenWidget>:
     orientation: "vertical"
