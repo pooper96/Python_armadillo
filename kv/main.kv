@@ -1,0 +1,212 @@
+# kv/main.kv
+#:import dp kivy.metrics.dp
+#:import sp kivy.metrics.sp
+#:set PAD dp(12)
+
+<HomeScreen>:
+    name: "home"
+    MDBoxLayout:
+        orientation: "vertical"
+        padding: PAD
+        spacing: PAD
+        MDLabel:
+            id: selected_label
+            text: "Selected: None"
+            font_style: "TitleSmall" if hasattr(self, "font_style") else "Subtitle1"
+            size_hint_y: None
+            height: dp(28)
+        MDBoxLayout:
+            spacing: PAD
+            size_hint_y: None
+            height: dp(44)
+            MDRaisedButton:
+                id: feed_btn
+                text: "Feed"
+                disabled: True
+                md_bg_color: app.theme_cls.primary_color if hasattr(app, "theme_cls") else (0.2,0.6,0.6,1)
+                on_release: root.on_feed()
+            MDRaisedButton:
+                id: pet_btn
+                text: "Pet"
+                disabled: True
+                on_release: root.on_pet()
+        MDLabel:
+            id: inventory_label
+            text: "Food: 0 • Toys: 0"
+            size_hint_y: None
+            height: dp(24)
+
+        ScrollView:
+            MDBoxLayout:
+                id: home_list
+                orientation: "vertical"
+                spacing: PAD
+                padding: (0, dp(4), 0, dp(80))
+                size_hint_y: None
+                height: self.minimum_height
+
+<HabitatsScreen>:
+    name: "habitats"
+    id: habitats_screen
+    MDBoxLayout:
+        orientation: "vertical"
+        padding: PAD
+        spacing: PAD
+
+        MDLabel:
+            text: "Habitats (long-press selected armadillo and drag here)"
+            size_hint_y: None
+            height: dp(28)
+
+        MDGridLayout:
+            cols: 1
+            spacing: PAD
+            size_hint_y: None
+            height: self.minimum_height
+
+            MDCard:
+                id: hab_card_1
+                opacity: 0.95
+                radius: [dp(12),]
+                padding: PAD
+                MDBoxLayout:
+                    orientation: "vertical"
+                    MDLabel:
+                        text: "Meadow"
+                        bold: True
+                    MDLabel:
+                        id: hab_cap_1
+                        text: "Lv 1 • Cap 0/0"
+                    MDLabel:
+                        id: hab_occ_1
+                        text: "(empty)"
+                    MDRaisedButton:
+                        text: "Upgrade (25)"
+                        size_hint_y: None
+                        height: dp(40)
+                        on_release: root.on_upgrade(1)
+
+            MDCard:
+                id: hab_card_2
+                opacity: 0.95
+                radius: [dp(12),]
+                padding: PAD
+                MDBoxLayout:
+                    orientation: "vertical"
+                    MDLabel:
+                        text: "Cave"
+                        bold: True
+                    MDLabel:
+                        id: hab_cap_2
+                        text: "Lv 1 • Cap 0/0"
+                    MDLabel:
+                        id: hab_occ_2
+                        text: "(empty)"
+                    MDRaisedButton:
+                        text: "Upgrade (25)"
+                        size_hint_y: None
+                        height: dp(40)
+                        on_release: root.on_upgrade(2)
+
+            MDCard:
+                id: hab_card_3
+                opacity: 0.95
+                radius: [dp(12),]
+                padding: PAD
+                MDBoxLayout:
+                    orientation: "vertical"
+                    MDLabel:
+                        text: "Coast"
+                        bold: True
+                    MDLabel:
+                        id: hab_cap_3
+                        text: "Lv 1 • Cap 0/0"
+                    MDLabel:
+                        id: hab_occ_3
+                        text: "(empty)"
+                    MDRaisedButton:
+                        text: "Upgrade (25)"
+                        size_hint_y: None
+                        height: dp(40)
+                        on_release: root.on_upgrade(3)
+
+<BreedingScreen>:
+    name: "breeding"
+    MDBoxLayout:
+        orientation: "vertical"
+        padding: PAD
+        spacing: PAD
+        MDLabel:
+            text: "Pick adults to breed"
+            size_hint_y: None
+            height: dp(26)
+        MDBoxLayout:
+            spacing: PAD
+            size_hint_y: None
+            height: dp(44)
+            MDSpinner:
+                id: dad_spinner
+                text: "Pick Male"
+                size_hint_x: 0.5
+            MDSpinner:
+                id: mom_spinner
+                text: "Pick Female"
+                size_hint_x: 0.5
+        MDRaisedButton:
+            text: "Start (30s)"
+            size_hint_y: None
+            height: dp(44)
+            on_release: root.on_start_breeding()
+
+        MDLabel:
+            text: "Queue"
+            size_hint_y: None
+            height: dp(24)
+        ScrollView:
+            MDBoxLayout:
+                id: queue_box
+                orientation: "vertical"
+                size_hint_y: None
+                height: self.minimum_height
+                padding: (0, 0, 0, dp(80))
+
+<DexScreen>:
+    name: "dex"
+    MDBoxLayout:
+        orientation: "vertical"
+        padding: PAD
+        spacing: PAD
+        MDLabel:
+            text: "Discovered Colors"
+            size_hint_y: None
+            height: dp(28)
+        ScrollView:
+            MDGridLayout:
+                id: dex_grid
+                cols: 3
+                spacing: PAD
+                size_hint_y: None
+                height: self.minimum_height
+
+<ShopScreen>:
+    name: "shop"
+    MDBoxLayout:
+        orientation: "vertical"
+        padding: PAD
+        spacing: PAD
+        MDLabel:
+            id: shop_inv
+            text: "Food: 0 • Toys: 0"
+            size_hint_y: None
+            height: dp(24)
+
+        MDBoxLayout:
+            spacing: PAD
+            size_hint_y: None
+            height: dp(48)
+            MDRaisedButton:
+                text: "Buy Food (5)"
+                on_release: root.on_buy_food()
+            MDRaisedButton:
+                text: "Buy Toy (8)"
+                on_release: root.on_buy_toy()

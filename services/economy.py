@@ -1,20 +1,18 @@
-from typing import Dict
-from settings import Settings
+# services/economy.py
+class Economy:
+    # Costs
+    COST_FOOD = 5
+    COST_TOY = 8
+    COST_HABITAT_UPGRADE = 25
 
+    # Rewards
+    REWARD_CARE = 3
+    REWARD_HATCH = 12
 
-class EconomyService:
-    def __init__(self, settings: Settings, state: Dict):
-        self.settings = settings
-        self.state = state
+    # Breeding
+    INCUBATION_MIN_S = 30
+    INCUBATION_MAX_S = 90
+    MUTATION_CHANCE = 0.06
 
-    def add_coins(self, amount: int | float):
-        self.state["coins"] = int(max(0, self.state.get("coins", 0) + amount))
-
-    def spend(self, amount: int) -> bool:
-        if self.state.get("coins", 0) >= amount:
-            self.state["coins"] -= amount
-            return True
-        return False
-
-    def feed_cost(self) -> int:
-        return self.settings.FEED_COST
+    # Habitat upgrade effect
+    UPGRADE_CAPACITY_DELTA = 1

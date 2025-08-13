@@ -1,88 +1,45 @@
-from typing import Dict, Tuple
+# models/armadillo.py
+from __future__ import annotations
+
 from dataclasses import dataclass, asdict
-from models.genetics import RNG, mix_color_with_variance, inherit_traits
+from typing import Dict
 
 
 @dataclass
 class Armadillo:
     id: str
-    nickname: str
-    rgb: Tuple[float, float, float]
-    hex_color: str
-    weight: float
-    age_ticks: int
-    stage: str
-    sex: str
-    traits: Dict[str, tuple]
-    rarity: float
-    habitat_id: str | None
-    hunger: int = 80
-    happiness: int = 80
+    name: str
+    sex: str  # "M" or "F"
+    age_days: int
+    hunger: int  # 0-100 (higher = fuller)
+    happiness: int  # 0-100
+    genes: Dict[str, str]  # simple genotype mapping e.g., {"color": "Aa"}
+    color: str  # phenotype, e.g., "Brown", "Albino", "Blue"
+    is_baby: bool
+    is_adult: bool
 
-    def to_dict(self) -> Dict:
-        d = asdict(self)
-        d["rgb"] = list(self.rgb)
-        return d
+    def to_dict(self) -> dict:
+        return asdict(self)
 
     @staticmethod
-    def from_dict(d: Dict) -> "Armadillo":
-        d = dict(d)
-        d["rgb"] = tuple(d["rgb"])
-        d.setdefault("hunger", 80)
-        d.setdefault("happiness", 80)
-        return Armadillo(**d)
-
-    @staticmethod
-    def new_starter(settings, nickname="Armi") -> "Armadillo":
-        r, g, b = 0.75, 0.65, 0.5
-        sex = "M" if RNG.randint(0, 1) == 0 else "F"
-        traits = {"pattern": ("banded", "plain", "banded"), "ears": ("tall", "short", "tall")}
+    def from_dict(d: dict) -> "Armadillo":
         return Armadillo(
-            id=f"arm_{RNG.randint(100000,999999)}",
-            nickname=nickname,
-            rgb=(r, g, b),
-            hex_color="#C0A580",
-            weight=1.0,
-            age_ticks=0,
-            stage="juvenile",
-            sex=sex,
-            traits=traits,
-            rarity=0.35,
-            habitat_id=None,
-            hunger=80,
-            happiness=80,
+            id=d["id"],
+            name=d["name"],
+            sex=d["sex"],
+            age_days=int(d.get("age_days", 0)),
+            hunger=int(d.get("hunger", 50)),
+            happiness=int(d.get("happiness", 50)),
+            genes=dict(d.get("genes", {})),
+            color=d.get("color", "Brown"),
+            is_baby=bool(d.get("is_baby", False)),
+            is_adult=bool(d.get("is_adult", True)),
         )
 
-    def is_adult(self, settings) -> bool:
-        return self.stage == "adult"
+    # --- Stats manipulation (capped) ---------------------------------------
 
-    def can_breed(self, settings) -> bool:
-        return self.is_adult(settings)
+    def feed(self, amount: int) -> None:
+        self.hunger = max(0, min(100, self.hunger + amount))
 
-    @staticmethod
-    def breed(settings, mom: "Armadillo", dad: "Armadillo") -> "Armadillo":
-        child_rgb, child_hex = mix_color_with_variance(
-            mom.rgb, dad.rgb,
-            settings.VARIANCE_STD, settings.MAX_VARIANCE,
-            settings.WEIGHT_VARIANCE_FACTOR, settings.AGE_VARIANCE_FACTOR,
-            mom.weight, dad.weight,
-            mom.age_ticks, dad.age_ticks
-        )
-        child_traits = inherit_traits(mom.traits, dad.traits, settings.BASE_MUTATION_CHANCE)
-        rarity = max(0.1, min(1.0, (mom.rarity + dad.rarity) / 2.0))
-        sex = "M" if RNG.randint(0, 1) == 0 else "F"
-        return Armadillo(
-            id=f"arm_{RNG.randint(100000,999999)}",
-            nickname="Egg",
-            rgb=child_rgb,
-            hex_color=child_hex,
-            weight=max(0.5, min(1.5, (mom.weight + dad.weight) / 2.0 + (RNG.random() - 0.5) * 0.1)),
-            age_ticks=0,
-            stage="egg",
-            sex=sex,
-            traits=child_traits,
-            rarity=rarity,
-            habitat_id=None,
-            hunger=50,
-            happiness=70,
-        )
+    def pet(self, amount: int) -> None:
+        self.happiness = max(0, min(100, self.happiness + amount))
